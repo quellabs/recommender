@@ -85,6 +85,7 @@
 		 */
 		public function memberGetRecommendedItems(int $memberId, array $filter = [], int $limit = 0, ?int $category = null): array {
 			$cat = $this->config->resolveCategory($category);
+			$limit = max(0, $limit);
 			$threshold = $this->config->getThresholdRating();
 			
 			$sql = '
@@ -135,6 +136,7 @@
 		 */
 		public function memberGetReasons(int $memberId, int $productId, int $limit = 0, ?int $category = null): array {
 			$cat = $this->config->resolveCategory($category);
+			$limit = max(0, $limit);
 			$threshold = $this->config->getThresholdRating();
 			
 			$sql = '
@@ -286,6 +288,8 @@
 		 */
 		public function getSlopeItems(int $productId, int $minLinks = 1, array $filter = [], int $limit = 0, ?int $category = null): array {
 			$cat = $this->config->resolveCategory($category);
+			$minLinks = max(1, $minLinks);
+			$limit = max(0, $limit);
 			
 			$sql = '
 				SELECT
@@ -375,6 +379,7 @@
 		 */
 		public function memberPredictAll(int $memberId, array $filter = [], int $limit = 0, ?int $category = null): array {
 			$cat = $this->config->resolveCategory($category);
+			$limit = max(0, $limit);
 			
 			$rows = $this->connection->execute('
 				SELECT

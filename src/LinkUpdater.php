@@ -15,6 +15,9 @@
 	 *
 	 * The $rating and $previous arguments use -1.0 as a sentinel meaning
 	 * "no rating exists" (i.e. the rating is being created or deleted).
+	 *
+	 * All public methods wrap their multi-statement mutations in a transaction to
+	 * prevent vogoo_links from becoming inconsistent if a statement fails midway.
 	 */
 	readonly class LinkUpdater {
 		
@@ -34,12 +37,12 @@
 		/**
 		 * Update the co-occurrence count in vogoo_links when a rating crosses
 		 * the like/dislike threshold.
-		 *
 		 * @param int $memberId The member whose rating changed
 		 * @param int $productId The product being rated
 		 * @param int $category The category
 		 * @param float $rating The new rating (-1.0 = being deleted)
 		 * @param float $previous The previous rating (-1.0 = did not exist)
+		 * @throws \Exception
 		 */
 		public function updateLinks(int $memberId, int $productId, int $category, float $rating, float $previous): void {
 			$threshold = $this->config->getThresholdRating();
@@ -50,9 +53,59 @@
 				return;
 			}
 			
-			if ($crossedUp) {
-				// Increment co-occurrence counts for all products this member already likes
-				$this->connection->execute('
+			$this->connection->transactional(function () use ($memberId, $productId, $category, $threshold, $crossedUp): void {
+				if ($crossedUp) {
+					$this->incrementLinks($memberId, $productId, $category, $threshold);
+				} else {
+					$this->decrementLinks($memberId, $productId, $category, $threshold);
+				}
+			});
+		}
+		
+		/**
+		 * Update the slope one diff_slope and cnt columns in vogoo_links when a
+		 * rating is added, changed, or removed.
+		 * @param int $memberId The member whose rating changed
+		 * @param int $productId The product being rated
+		 * @param int $category The category
+		 * @param float $rating The new rating (-1.0 = being deleted)
+		 * @param float $previous The previous rating (-1.0 = did not exist)
+		 * @throws \Exception
+		 */
+		public function updateSlope(int $memberId, int $productId, int $category, float $rating, float $previous): void {
+			// Both absent: nothing to do
+			if ($rating < 0.0 && $previous < 0.0) {
+				return;
+			}
+			
+			$this->connection->transactional(function () use ($memberId, $productId, $category, $rating, $previous): void {
+				if ($previous < 0.0) {
+					// New rating: add slope entries
+					$this->addSlope($memberId, $productId, $category, $rating);
+				} elseif ($rating < 0.0) {
+					// Deleted rating: remove slope entries
+					$this->removeSlope($memberId, $productId, $category, $previous);
+				} else {
+					// Changed rating: adjust diff_slope by the delta
+					$this->adjustSlope($memberId, $productId, $category, $rating, $previous);
+				}
+			});
+		}
+		
+		// -------------------------------------------------------------------------
+		
+		/**
+		 * Increment co-occurrence counts and insert missing link rows when a rating
+		 * crosses the like threshold upward.
+		 * @param int $memberId The member whose rating changed
+		 * @param int $productId The product being rated
+		 * @param int $category The category
+		 * @param float $threshold The minimum rating to count as "liked"
+		 * @return void
+		 */
+		private function incrementLinks(int $memberId, int $productId, int $category, float $threshold): void {
+			// Increment co-occurrence counts for all products this member already likes
+			$this->connection->execute('
 					UPDATE `vogoo_links` vl
 					INNER JOIN `vogoo_ratings` vr ON vr.`member_id` = :member_id AND
 					                                 vr.`category` = :category AND
@@ -65,17 +118,17 @@
 						(vl.`item_id2` = vr.`product_id` AND vl.`item_id1` = :product_id3)
 					) AND vl.`category` = :category2
 				', [
-					'member_id'   => $memberId,
-					'category'    => $category,
-					'threshold'   => $threshold,
-					'product_id'  => $productId,
-					'product_id2' => $productId,
-					'product_id3' => $productId,
-					'category2'   => $category
-				]);
-				
-				// Insert link rows that do not yet exist
-				$this->connection->execute('
+				'member_id'   => $memberId,
+				'category'    => $category,
+				'threshold'   => $threshold,
+				'product_id'  => $productId,
+				'product_id2' => $productId,
+				'product_id3' => $productId,
+				'category2'   => $category
+			]);
+			
+			// Insert link rows that do not yet exist
+			$this->connection->execute('
 					INSERT INTO `vogoo_links` (`item_id1`, `item_id2`, `category`, `cnt`, `diff_slope`)
 					SELECT :product_id, vr.`product_id`, :category, 1, 0.0
 					FROM `vogoo_ratings` vr
@@ -103,28 +156,35 @@
 					      	      vl.`item_id1` = vr.`product_id`
 					      )
 				', [
-					'product_id'  => $productId,
-					'category'    => $category,
-					'member_id'   => $memberId,
-					'category2'   => $category,
-					'threshold'   => $threshold,
-					'product_id2' => $productId,
-					'category3'   => $category,
-					'product_id3' => $productId,
-					'product_id4' => $productId,
-					'category4'   => $category,
-					'member_id2'  => $memberId,
-					'category5'   => $category,
-					'threshold2'  => $threshold,
-					'product_id5' => $productId,
-					'category6'   => $category,
-					'product_id6' => $productId
-				]);
-				
-				return;
-			}
-			
-			// Crossed down: decrement counts and prune zero-count rows
+				'product_id'  => $productId,
+				'category'    => $category,
+				'member_id'   => $memberId,
+				'category2'   => $category,
+				'threshold'   => $threshold,
+				'product_id2' => $productId,
+				'category3'   => $category,
+				'product_id3' => $productId,
+				'product_id4' => $productId,
+				'category4'   => $category,
+				'member_id2'  => $memberId,
+				'category5'   => $category,
+				'threshold2'  => $threshold,
+				'product_id5' => $productId,
+				'category6'   => $category,
+				'product_id6' => $productId
+			]);
+		}
+		
+		/**
+		 * Decrement co-occurrence counts and prune zero-count rows when a rating
+		 * crosses the like threshold downward.
+		 * @param int $memberId The member whose rating changed
+		 * @param int $productId The product being rated
+		 * @param int $category The category
+		 * @param float $threshold The minimum rating to count as "liked"
+		 * @return void
+		 */
+		private function decrementLinks(int $memberId, int $productId, int $category, float $threshold): void {
 			$this->connection->execute('
 				UPDATE `vogoo_links` vl
 				INNER JOIN `vogoo_ratings` vr ON vr.`member_id` = :member_id AND
@@ -151,39 +211,14 @@
 		}
 		
 		/**
-		 * Update the slope one diff_slope and cnt columns in vogoo_links when a
-		 * rating is added, changed, or removed.
-		 *
-		 * @param int $memberId The member whose rating changed
+		 * Add slope one entries for a new rating — updates existing link rows and
+		 * inserts any pairs that do not yet exist.
+		 * @param int $memberId The member whose rating was added
 		 * @param int $productId The product being rated
 		 * @param int $category The category
-		 * @param float $rating The new rating (-1.0 = being deleted)
-		 * @param float $previous The previous rating (-1.0 = did not exist)
+		 * @param float $rating The new rating value
+		 * @return void
 		 */
-		public function updateSlope(int $memberId, int $productId, int $category, float $rating, float $previous): void {
-			// Both absent: nothing to do
-			if ($rating < 0.0 && $previous < 0.0) {
-				return;
-			}
-			
-			if ($previous < 0.0) {
-				// New rating: add slope entries
-				$this->addSlope($memberId, $productId, $category, $rating);
-				return;
-			}
-			
-			if ($rating < 0.0) {
-				// Deleted rating: remove slope entries
-				$this->removeSlope($memberId, $productId, $category, $previous);
-				return;
-			}
-			
-			// Changed rating: adjust diff_slope by the delta
-			$this->adjustSlope($memberId, $productId, $category, $rating, $previous);
-		}
-		
-		// -------------------------------------------------------------------------
-		
 		private function addSlope(int $memberId, int $productId, int $category, float $rating): void {
 			// Update existing rows where product_id is item_id1
 			$this->connection->execute('
@@ -275,6 +310,16 @@
 			]);
 		}
 		
+		/**
+		 * Remove slope one entries for a deleted rating — decrements cnt and
+		 * diff_slope, then prunes zero-count rows.
+		 *
+		 * @param int $memberId The member whose rating was deleted
+		 * @param int $productId The product that was rated
+		 * @param int $category The category
+		 * @param float $previous The rating value that was deleted
+		 * @return void
+		 */
 		private function removeSlope(int $memberId, int $productId, int $category, float $previous): void {
 			$this->connection->execute('
 				UPDATE `vogoo_links` vl
@@ -319,6 +364,17 @@
 			$this->connection->execute('DELETE FROM `vogoo_links` WHERE `cnt` = 0');
 		}
 		
+		/**
+		 * Adjust slope one diff_slope values when an existing rating changes —
+		 * applies the delta without touching cnt.
+		 *
+		 * @param int $memberId The member whose rating changed
+		 * @param int $productId The product being rated
+		 * @param int $category The category
+		 * @param float $rating The new rating value
+		 * @param float $previous The previous rating value
+		 * @return void
+		 */
 		private function adjustSlope(int $memberId, int $productId, int $category, float $rating, float $previous): void {
 			$diff = $rating - $previous;
 			

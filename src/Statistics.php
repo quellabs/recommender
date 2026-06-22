@@ -116,6 +116,7 @@
 		 */
 		public function mostRatedProducts(int $limit = 10, ?int $category = null): array {
 			$cat = $this->config->resolveCategory($category);
+			$limit = max(0, $limit);
 			
 			$sql = '
 				SELECT
@@ -155,6 +156,8 @@
 		 */
 		public function topRatedProducts(int $limit = 10, int $minRatings = 1, ?int $category = null): array {
 			$cat = $this->config->resolveCategory($category);
+			$limit = max(0, $limit);
+			$minRatings = max(1, $minRatings);
 			
 			$sql = '
 				SELECT

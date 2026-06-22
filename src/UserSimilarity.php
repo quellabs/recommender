@@ -119,6 +119,8 @@
 		 */
 		public function getNeighbours(int $memberId, int $minSimilarity = 1, int $limit = 0, ?int $category = null): array {
 			$cat = $this->config->resolveCategory($category);
+			$minSimilarity = max(0, min(100, $minSimilarity));
+			$limit = max(0, $limit);
 			
 			// Fetch all members who have rated at least one product in common
 			$rows = $this->connection->execute('
@@ -168,6 +170,8 @@
 		 */
 		public function memberGetRecommendedItems(int $memberId, int $minSimilarity = 1, array $filter = [], int $limit = 0, ?int $category = null): array {
 			$cat = $this->config->resolveCategory($category);
+			$minSimilarity = max(0, min(100, $minSimilarity));
+			$limit = max(0, $limit);
 			$threshold = $this->config->getThresholdRating();
 			
 			$neighbours = $this->getNeighbours($memberId, $minSimilarity, 0, $cat);
