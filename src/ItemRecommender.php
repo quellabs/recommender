@@ -21,12 +21,19 @@
 	 * All methods throw on database failure. Wrap calls in try/catch if you need
 	 * to handle errors.
 	 */
-	class ItemRecommender {
+	readonly class ItemRecommender {
 		
-		public function __construct(
-			private readonly Connection $connection,
-			private readonly RecommendationConfig $config,
-		) {
+		private Connection $connection;
+		private RecommendationConfig $config;
+		
+		/**
+		 * ItemRecommender constructor
+		 * @param Connection $connection
+		 * @param RecommendationConfig $config
+		 */
+		public function __construct(Connection $connection, RecommendationConfig $config) {
+			$this->config = $config;
+			$this->connection = $connection;
 		}
 		
 		// -------------------------------------------------------------------------
@@ -46,11 +53,14 @@
 		public function getLinkedItems(int $productId, array $filter = [], int $limit = 0, ?int $category = null): array {
 			$cat = $this->config->resolveCategory($category);
 			
-			$sql = 'SELECT item_id2, cnt
+			$sql = '
+				SELECT
+					item_id2,
+					cnt
 		        FROM vogoo_links
-		        WHERE item_id1 = :product_id
-		          AND category = :category
-		        ORDER BY cnt DESC';
+		        WHERE item_id1 = :product_id AND category = :category
+		        ORDER BY cnt DESC
+	        ';
 			
 			$params = ['product_id' => $productId, 'category' => $cat];
 			
@@ -537,6 +547,10 @@
 			$result = [];
 			
 			foreach ($rows as $row) {
+				if (!is_array($row) || !isset($row[$column]) || !is_scalar($row[$column])) {
+					continue;
+				}
+				
 				$id = (int)$row[$column];
 				
 				if (empty($filter) || in_array($id, $filter, true)) {

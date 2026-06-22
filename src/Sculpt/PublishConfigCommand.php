@@ -24,7 +24,12 @@
 		}
 		
 		public function execute(ConfigurationManager $config): int {
-			$source = realpath(dirname(__FILE__) . '/../../config/recommender.php');
+			$source = realpath(__DIR__ . '/../../config/recommender.php');
+			
+			if ($source === false) {
+				$this->output->error('Could not locate the recommender config stub file.');
+				return 1;
+			}
 			$target = ComposerUtils::getProjectRoot() . '/config/recommender.php';
 			
 			// Skip if the config file was already published

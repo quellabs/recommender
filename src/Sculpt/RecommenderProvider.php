@@ -81,16 +81,14 @@
 				return $this->connection;
 			}
 			
-			$defaults = self::getDefaults();
-			
 			$this->connection = new Connection([
-				'driver'   => $this->resolveDriver($this->getConfigValueAsString('driver', $defaults['driver'])),
-				'host'     => $this->getConfigValueAsString('host', $defaults['host']),
-				'username' => $this->getConfigValueAsString('username', $defaults['username']),
-				'password' => $this->getConfigValueAsString('password', $defaults['password']),
-				'database' => $this->getConfigValueAsString('database', $defaults['database']),
-				'port'     => $this->getConfigValueAsInt('port', $defaults['port']),
-				'encoding' => $this->getConfigValueAsString('encoding', $defaults['encoding']),
+				'driver'   => $this->resolveDriver($this->getConfigValueAsString('driver', 'mysql')),
+				'host'     => $this->getConfigValueAsString('host', 'localhost'),
+				'username' => $this->getConfigValueAsString('username', ''),
+				'password' => $this->getConfigValueAsString('password', ''),
+				'database' => $this->getConfigValueAsString('database', ''),
+				'port'     => $this->getConfigValueAsInt('port', 3306),
+				'encoding' => $this->getConfigValueAsString('encoding', 'utf8mb4'),
 			]);
 			
 			return $this->connection;
@@ -104,23 +102,29 @@
 				return $this->recommendationConfig;
 			}
 			
-			$defaults = self::getDefaults();
-			
 			$this->recommendationConfig = new RecommendationConfig(
-				category: $this->getConfigValueAsInt('category', $defaults['category']),
-				thresholdNrCommonRatings: $this->getConfigValueAsInt('threshold_nr_common_ratings', $defaults['threshold_nr_common_ratings']),
-				thresholdMult: $this->getConfigValueAsInt('threshold_mult', $defaults['threshold_mult']),
-				thresholdRating: (float)$this->getConfigValue('threshold_rating', $defaults['threshold_rating']),
-				cost: (float)$this->getConfigValue('cost', $defaults['cost']),
-				notInterested: (float)$this->getConfigValue('not_interested', $defaults['not_interested']),
-				directLinks: (bool)$this->getConfigValue('direct_links', $defaults['direct_links']),
-				directSlope: (bool)$this->getConfigValue('direct_slope', $defaults['direct_slope']),
+				category: $this->getConfigValueAsInt('category', 1),
+				thresholdNrCommonRatings: $this->getConfigValueAsInt('threshold_nr_common_ratings', 30),
+				thresholdMult: $this->getConfigValueAsInt('threshold_mult', 2),
+				thresholdRating: $this->getConfigValueAsFloat('threshold_rating', 0.66),
+				cost: $this->getConfigValueAsFloat('cost', 5.0),
+				notInterested: $this->getConfigValueAsFloat('not_interested', -1.0),
+				directLinks: (bool)$this->getConfigValue('direct_links', false),
+				directSlope: (bool)$this->getConfigValue('direct_slope', true),
 			);
 			
 			return $this->recommendationConfig;
 		}
 		
 		// -------------------------------------------------------------------------
+		
+		/**
+		 * Retrieve a float value from config, falling back to the provided default.
+		 */
+		private function getConfigValueAsFloat(string $key, float $default): float {
+			$value = $this->getConfigValue($key);
+			return is_numeric($value) ? (float)$value : $default;
+		}
 		
 		/**
 		 * Resolve a short driver name to a fully qualified CakePHP driver class.
