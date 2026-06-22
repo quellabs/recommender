@@ -1,17 +1,22 @@
 # quellabs/recommender
 
-Collaborative filtering recommendation engine for PHP 8.2+, built on the CakePHP 5 database layer. Implements two complementary algorithms:
+Collaborative filtering recommendation engine for PHP 8.2+, built on the CakePHP 5 database layer. Implements two
+complementary algorithms:
 
 - **Item-based collaborative filtering** — "people who liked A also liked B"
 - **Slope One** — lightweight weighted rating prediction for unrated items
 
-Originally based on the [Vogoo PHP recommendation engine](http://www.vogoo.net/) (2007–2008) by Stéphane Droux, modernised for PHP 8.2+ and the Quellabs Canvas ecosystem.
+Based on the [Vogoo PHP recommendation engine](http://www.vogoo.net/) (2007–2008) by Stéphane Droux, modernised for PHP
+8.2+ and the Quellabs ecosystem.
+
+---
 
 ## Requirements
 
 - PHP 8.2+
 - `cakephp/database` ^5.0
-- MySQL (the incremental link update queries use MySQL-specific `UPDATE ... JOIN` and `INSERT ... ON DUPLICATE KEY UPDATE` syntax)
+- MySQL (the incremental link update queries use MySQL-specific `UPDATE ... JOIN` and
+  `INSERT ... ON DUPLICATE KEY UPDATE` syntax)
 
 ## Installation
 
@@ -27,7 +32,8 @@ composer require quellabs/recommender
 sculpt recommender:init
 ```
 
-This copies `config/recommender.php` to your project root. Edit it to tune the engine constants. Database credentials are read from `config/database.php`, which is shared with other Canvas packages.
+This copies `config/recommender.php` to your project root. Edit it to tune the engine constants. Database credentials
+are read from `config/database.php`, which is shared with other Canvas packages.
 
 ### 2. Create the database tables
 
@@ -57,25 +63,26 @@ sculpt recommender:rebuild-links --category=2
 
 Stores member/product ratings.
 
-| Column | Type | Description |
-|---|---|---|
-| `member_id` | INT UNSIGNED | Your application's user ID |
-| `product_id` | INT UNSIGNED | Your application's product/item ID |
-| `category` | INT UNSIGNED | Category grouping (default: 1) |
-| `rating` | FLOAT | 0.0–1.0, or -1.0 for "not interested" |
-| `ts` | DATETIME | Last updated timestamp |
+| Column       | Type         | Description                           |
+|--------------|--------------|---------------------------------------|
+| `member_id`  | INT UNSIGNED | Your application's user ID            |
+| `product_id` | INT UNSIGNED | Your application's product/item ID    |
+| `category`   | INT UNSIGNED | Category grouping (default: 1)        |
+| `rating`     | FLOAT        | 0.0–1.0, or -1.0 for "not interested" |
+| `ts`         | DATETIME     | Last updated timestamp                |
 
 ### `vogoo_links`
 
-Stores pre-computed item co-occurrence counts and Slope One diff values. Populated by the rebuild command or maintained incrementally.
+Stores pre-computed item co-occurrence counts and Slope One diff values. Populated by the rebuild command or maintained
+incrementally.
 
-| Column | Type | Description |
-|---|---|---|
-| `item_id1` | INT UNSIGNED | First item in the pair |
-| `item_id2` | INT UNSIGNED | Second item in the pair |
-| `category` | INT UNSIGNED | Category grouping |
-| `cnt` | INT | Co-occurrence count |
-| `diff_slope` | FLOAT | Accumulated Slope One rating differential |
+| Column       | Type         | Description                               |
+|--------------|--------------|-------------------------------------------|
+| `item_id1`   | INT UNSIGNED | First item in the pair                    |
+| `item_id2`   | INT UNSIGNED | Second item in the pair                   |
+| `category`   | INT UNSIGNED | Category grouping                         |
+| `cnt`        | INT          | Co-occurrence count                       |
+| `diff_slope` | FLOAT        | Accumulated Slope One rating differential |
 
 ## Configuration
 
@@ -111,10 +118,10 @@ return [
 
 `direct_links` and `direct_slope` are independent. You can enable either or both:
 
-| | `direct_links` | `direct_slope` |
-|---|---|---|
+|        | `direct_links`                                    | `direct_slope`                                             |
+|--------|---------------------------------------------------|------------------------------------------------------------|
 | Powers | `getLinkedItems()`, `memberGetRecommendedItems()` | `getSlopeItems()`, `memberPredict()`, `memberPredictAll()` |
-| Counts | Co-occurrence (liked pairs only) | All rated pairs |
+| Counts | Co-occurrence (liked pairs only)                  | All rated pairs                                            |
 
 When both are `false`, `vogoo_links` is read-only at runtime and must be rebuilt manually.
 
@@ -122,24 +129,20 @@ When both are `false`, `vogoo_links` is read-only at runtime and must be rebuilt
 
 ### With Canvas (autowired)
 
-`RecommendationConfig` is registered with the Canvas DI container automatically. `Connection` is provided by `quellabs/canvas-database`. Inject both:
+`RecommendationEngine` and `ItemRecommender` are resolved automatically by the Canvas DI container — their
+constructors depend only on `Connection` (provided by `quellabs/canvas-database`) and `RecommendationConfig`
+(provided by this package), so no manual wiring is required:
 
 ```php
-use Cake\Database\Connection;
-use Quellabs\Recommender\Config\RecommendationConfig;
 use Quellabs\Recommender\ItemRecommender;
 use Quellabs\Recommender\RecommendationEngine;
 
 class ProductController
 {
-    private ItemRecommender $recommender;
-    private RecommendationEngine $engine;
-
-    public function __construct(Connection $connection, RecommendationConfig $config)
-    {
-        $this->engine     = new RecommendationEngine($connection, $config);
-        $this->recommender = new ItemRecommender($connection, $config);
-    }
+    public function __construct(
+        private RecommendationEngine $engine,
+        private ItemRecommender $recommender,
+    ) {}
 }
 ```
 
@@ -171,7 +174,8 @@ $recommender = new ItemRecommender($connection, $config);
 
 ### `RecommendationEngine`
 
-Handles rating CRUD. All write methods trigger incremental link/slope updates when `direct_links` or `direct_slope` is enabled.
+Handles rating CRUD. All write methods trigger incremental link/slope updates when `direct_links` or `direct_slope` is
+enabled.
 
 ```php
 // Record ratings
@@ -228,7 +232,8 @@ $neighbours = $userSimilarity->getNeighbours($memberId, minSimilarity: 10, limit
 $items      = $userSimilarity->memberGetRecommendedItems($memberId);
 ```
 
-> **Note:** `getNeighbours()` computes similarity against every candidate neighbour in PHP. For large member sets, pre-compute and cache neighbour lists.
+> **Note:** `getNeighbours()` computes similarity against every candidate neighbour in PHP. For large member sets,
+> pre-compute and cache neighbour lists.
 
 ### `VisitorContext`
 
@@ -256,17 +261,19 @@ $stats->topRatedProducts(limit: 10, minRatings: 5); // [['product_id', 'avg_rati
 
 ## Sculpt CLI commands
 
-| Command | Description |
-|---|---|
-| `sculpt recommender:init` | Publish `config/recommender.php` |
-| `sculpt recommender:init-db` | Create `vogoo_ratings` and `vogoo_links` tables |
-| `sculpt recommender:init-db --force` | Drop and recreate tables |
-| `sculpt recommender:rebuild-links` | Rebuild `vogoo_links` from all ratings |
-| `sculpt recommender:rebuild-links --category=N` | Rebuild a single category |
+| Command                                         | Description                                     |
+|-------------------------------------------------|-------------------------------------------------|
+| `sculpt recommender:init`                       | Publish `config/recommender.php`                |
+| `sculpt recommender:init-db`                    | Create `vogoo_ratings` and `vogoo_links` tables |
+| `sculpt recommender:init-db --force`            | Drop and recreate tables                        |
+| `sculpt recommender:rebuild-links`              | Rebuild `vogoo_links` from all ratings          |
+| `sculpt recommender:rebuild-links --category=N` | Rebuild a single category                       |
 
 ## Multi-category support
 
-Every method accepts an optional `?int $category` parameter. When omitted it falls back to the `category` value in `RecommendationConfig` (default: 1). To work with multiple catalogues, either pass the category explicitly or instantiate separate `RecommendationConfig` objects per category:
+Every method accepts an optional `?int $category` parameter. When omitted it falls back to the `category` value in
+`RecommendationConfig` (default: 1). To work with multiple catalogues, either pass the category explicitly or
+instantiate separate `RecommendationConfig` objects per category:
 
 ```php
 $booksConfig    = new RecommendationConfig(category: 1);
