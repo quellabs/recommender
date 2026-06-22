@@ -15,8 +15,7 @@
 	 *  - Slope One (cnt + diff_slope): weighted predicted rating for unseen items
 	 *
 	 * Both strategies require vogoo_links to be pre-populated, either via a
-	 * batch rebuild (not included here) or via incremental updates through
-	 * LinkUpdater.
+	 * batch rebuild or via incremental updates through LinkUpdater.
 	 *
 	 * All methods throw on database failure. Wrap calls in try/catch if you need
 	 * to handle errors.
@@ -43,7 +42,6 @@
 		/**
 		 * Return items that co-occur with the given product, ordered by
 		 * co-occurrence count descending.
-		 *
 		 * @param int $productId
 		 * @param array<int> $filter When non-empty, only return product IDs in this set
 		 * @param int $limit Maximum number of results (0 = unlimited)
@@ -55,20 +53,23 @@
 			
 			$sql = '
 				SELECT
-					item_id2,
-					cnt
-		        FROM vogoo_links
-		        WHERE item_id1 = :product_id AND category = :category
-		        ORDER BY cnt DESC
+					`item_id2`,
+					`cnt`
+				FROM `vogoo_links`
+				WHERE `item_id1` = :product_id AND
+				      `category` = :category
+				ORDER BY `cnt` DESC
 	        ';
-			
-			$params = ['product_id' => $productId, 'category' => $cat];
 			
 			if ($limit > 0) {
 				$sql .= ' LIMIT ' . $limit;
 			}
 			
-			$rows = $this->connection->execute($sql, $params)->fetchAll('assoc');
+			$rows = $this->connection->execute($sql, [
+				'product_id' => $productId,
+				'category'   => $cat
+			])->fetchAll('assoc');
+			
 			return $this->filterAndExtract($rows, 'item_id2', $filter);
 		}
 		
@@ -76,7 +77,6 @@
 		 * Return recommended items for a member using item-based CF, ordered by
 		 * weighted co-occurrence score descending.
 		 * Only returns items the member has not already rated.
-		 *
 		 * @param int $memberId
 		 * @param array<int> $filter When non-empty, only return product IDs in this set
 		 * @param int $limit Maximum number of results (0 = unlimited)
@@ -87,29 +87,33 @@
 			$cat = $this->config->resolveCategory($category);
 			$threshold = $this->config->getThresholdRating();
 			
-			$sql = 'SELECT l.item_id2, SUM(l.cnt * (r.rating - :threshold)) AS cnter
-		        FROM vogoo_links l
-		        INNER JOIN vogoo_ratings r ON r.member_id = :member_id
-		            AND l.item_id1 = r.product_id
-		            AND r.rating >= 0.0
-		            AND l.category = r.category
-		            AND r.category = :category
+			$sql = '
+				SELECT
+					l.`item_id2`,
+					SUM(l.`cnt` * (r.`rating` - :threshold)) AS cnter
+				FROM `vogoo_links` l
+				INNER JOIN `vogoo_ratings` r ON r.`member_id` = :member_id AND
+				                               l.`item_id1` = r.`product_id` AND
+				                               r.`rating` >= 0.0 AND
+				                               l.`category` = r.`category` AND
+				                               r.`category` = :category
 		        WHERE NOT EXISTS (
-		            SELECT 1 FROM vogoo_ratings vr
-		            WHERE vr.member_id = :member_id2
-		              AND vr.category = :category2
-		              AND vr.product_id = l.item_id2
+					SELECT 1 FROM `vogoo_ratings` vr
+					WHERE vr.`member_id` = :member_id2 AND
+					      vr.`category` = :category2 AND
+					      vr.`product_id` = l.`item_id2`
 		        )
-		        GROUP BY l.item_id2
+				GROUP BY l.`item_id2`
 		        HAVING cnter > 0
-		        ORDER BY cnter DESC';
+				ORDER BY cnter DESC
+			';
 			
 			$params = [
 				'threshold'  => $threshold,
 				'member_id'  => $memberId,
 				'category'   => $cat,
 				'member_id2' => $memberId,
-				'category2'  => $cat,
+				'category2'  => $cat
 			];
 			
 			if ($limit > 0) {
@@ -123,7 +127,6 @@
 		/**
 		 * Return the products this member has already rated that are linked to the
 		 * given product — the "why we recommend this" list.
-		 *
 		 * @param int $memberId
 		 * @param int $productId
 		 * @param int $limit Maximum number of results (0 = unlimited)
@@ -134,21 +137,23 @@
 			$cat = $this->config->resolveCategory($category);
 			$threshold = $this->config->getThresholdRating();
 			
-			$sql = 'SELECT r.product_id
-		        FROM vogoo_ratings r
-		        INNER JOIN vogoo_links l ON l.item_id1 = :product_id
-		            AND r.product_id = l.item_id2
-		            AND l.cnt > 0
-		            AND l.category = r.category
-		        WHERE r.member_id = :member_id
-		          AND r.category = :category
-		          AND r.rating >= :threshold';
+			$sql = '
+				SELECT r.`product_id`
+				FROM `vogoo_ratings` r
+				INNER JOIN `vogoo_links` l ON l.`item_id1` = :product_id AND
+				                             r.`product_id` = l.`item_id2` AND
+				                             l.`cnt` > 0 AND
+				                             l.`category` = r.`category`
+				WHERE r.`member_id` = :member_id AND
+				      r.`category` = :category AND
+				      r.`rating` >= :threshold
+			';
 			
 			$params = [
 				'product_id' => $productId,
 				'member_id'  => $memberId,
 				'category'   => $cat,
-				'threshold'  => $threshold,
+				'threshold'  => $threshold
 			];
 			
 			if ($limit > 0) {
@@ -162,7 +167,6 @@
 		/**
 		 * Return recommended items for an anonymous visitor using item-based CF.
 		 * Ratings are read from the provided VisitorContext rather than the database.
-		 *
 		 * @param VisitorContext $visitor
 		 * @param array<int> $filter When non-empty, only return product IDs in this set
 		 * @param int $limit Maximum number of results (0 = unlimited)
@@ -186,15 +190,23 @@
 					continue;
 				}
 				
-				$rows = $this->connection->execute(
-					'SELECT item_id2, cnt
-				 FROM vogoo_links
-				 WHERE category = :category
-				   AND item_id1 = :product_id',
-					['category' => $cat, 'product_id' => $entry['product_id']],
-				)->fetchAll('assoc');
+				$rows = $this->connection->execute('
+					SELECT
+						`item_id2`,
+						`cnt`
+					FROM `vogoo_links`
+					WHERE `category` = :category AND
+					      `item_id1` = :product_id
+				', [
+					'category'   => $cat,
+					'product_id' => $entry['product_id']
+				])->fetchAll('assoc');
 				
 				foreach ($rows as $row) {
+					if (!is_array($row) || !isset($row['item_id2'], $row['cnt']) || !is_scalar($row['item_id2'])) {
+						continue;
+					}
+					
 					$id = (int)$row['item_id2'];
 					
 					if ((!empty($filter) && !in_array($id, $filter, true)) || in_array($id, $ratedIds, true)) {
@@ -219,7 +231,6 @@
 		/**
 		 * Return the visitor's already-rated products that are linked to the given
 		 * product — the "why we recommend this" list for anonymous visitors.
-		 *
 		 * @param VisitorContext $visitor
 		 * @param int $productId
 		 * @param int $limit Maximum number of results (0 = unlimited)
@@ -242,12 +253,14 @@
 			
 			$placeholders = implode(',', array_fill(0, count($likedIds), '?'));
 			
-			$sql = "SELECT item_id2
-		        FROM vogoo_links
-		        WHERE category = ?
-		          AND item_id1 = ?
-		          AND item_id2 IN ({$placeholders})
-		          AND cnt > 0";
+			$sql = "
+				SELECT `item_id2`
+				FROM `vogoo_links`
+				WHERE `category` = ? AND
+				      `item_id1` = ? AND
+				      `item_id2` IN ({$placeholders}) AND
+				      `cnt` > 0
+			";
 			
 			if ($limit > 0) {
 				$sql .= ' LIMIT ' . $limit;
@@ -264,7 +277,6 @@
 		/**
 		 * Return items sorted by their average slope one diff relative to the given
 		 * product, ordered best-match first.
-		 *
 		 * @param int $productId
 		 * @param int $minLinks Minimum co-occurrence count to include a pair
 		 * @param array<int> $filter When non-empty, only return product IDs in this set
@@ -275,15 +287,23 @@
 		public function getSlopeItems(int $productId, int $minLinks = 1, array $filter = [], int $limit = 0, ?int $category = null): array {
 			$cat = $this->config->resolveCategory($category);
 			
-			$sql = 'SELECT item_id2, (diff_slope / cnt) AS avg_diff
-		        FROM vogoo_links
-		        WHERE item_id1 = :product_id
-		          AND category = :category
-		          AND cnt != 0
-		          AND cnt >= :min_links
-		        ORDER BY avg_diff DESC';
+			$sql = '
+				SELECT
+					`item_id2`,
+					(`diff_slope` / `cnt`) AS avg_diff
+				FROM `vogoo_links`
+				WHERE `item_id1` = :product_id AND
+				      `category` = :category AND
+				      `cnt` != 0 AND
+				      `cnt` >= :min_links
+				ORDER BY avg_diff DESC
+			';
 			
-			$params = ['product_id' => $productId, 'category' => $cat, 'min_links' => $minLinks];
+			$params = [
+				'product_id' => $productId,
+				'category'   => $cat,
+				'min_links'  => $minLinks
+			];
 			
 			if ($limit > 0) {
 				$sql .= ' LIMIT ' . $limit;
@@ -293,6 +313,10 @@
 			$result = [];
 			
 			foreach ($rows as $row) {
+				if (!is_array($row) || !isset($row['item_id2'], $row['avg_diff']) || !is_scalar($row['item_id2'])) {
+					continue;
+				}
+				
 				$id = (int)$row['item_id2'];
 				
 				if (!empty($filter) && !in_array($id, $filter, true)) {
@@ -308,7 +332,6 @@
 		/**
 		 * Predict a member's rating for a single product using slope one.
 		 * Returns null when there is insufficient data to make a prediction.
-		 *
 		 * @param int $memberId
 		 * @param int $productId
 		 * @param int|null $category Defaults to configured default
@@ -317,17 +340,21 @@
 		public function memberPredict(int $memberId, int $productId, ?int $category = null): ?float {
 			$cat = $this->config->resolveCategory($category);
 			
-			$row = $this->connection->execute(
-				'SELECT SUM(l.cnt) AS cnter,
-			        SUM(r.rating * l.cnt - l.diff_slope) AS diff
-			 FROM vogoo_links l
-			 INNER JOIN vogoo_ratings r ON r.member_id = :member_id
-			     AND r.product_id = l.item_id2
-			     AND r.category = l.category
-			 WHERE l.item_id1 = :product_id
-			   AND l.category = :category',
-				['member_id' => $memberId, 'product_id' => $productId, 'category' => $cat],
-			)->fetchAssoc();
+			$row = $this->connection->execute('
+				SELECT
+					SUM(l.`cnt`) AS cnter,
+					SUM(r.`rating` * l.`cnt` - l.`diff_slope`) AS diff
+				FROM `vogoo_links` l
+				INNER JOIN `vogoo_ratings` r ON r.`member_id` = :member_id AND
+				                               r.`product_id` = l.`item_id2` AND
+				                               r.`category` = l.`category`
+				WHERE l.`item_id1` = :product_id AND
+				      l.`category` = :category
+			', [
+				'member_id'  => $memberId,
+				'product_id' => $productId,
+				'category'   => $cat
+			])->fetchAssoc();
 			
 			if ((int)$row['cnter'] === 0) {
 				return null;
@@ -340,7 +367,6 @@
 		 * Predict ratings for all unrated items for a member using slope one,
 		 * returned as [['product_id' => int, 'rating' => float], ...] sorted
 		 * by predicted rating descending.
-		 *
 		 * @param int $memberId
 		 * @param array<int> $filter When non-empty, only return product IDs in this set
 		 * @param int $limit Maximum number of results (0 = unlimited)
@@ -350,35 +376,39 @@
 		public function memberPredictAll(int $memberId, array $filter = [], int $limit = 0, ?int $category = null): array {
 			$cat = $this->config->resolveCategory($category);
 			
-			$rows = $this->connection->execute(
-				'SELECT l.item_id2,
-			        SUM(l.cnt) AS cnter,
-			        SUM(r.rating * l.cnt + l.diff_slope) AS diff
-			 FROM vogoo_links l
-			 INNER JOIN vogoo_ratings r ON r.member_id = :member_id
-			     AND r.rating >= 0.0
-			     AND l.item_id1 = r.product_id
-			     AND l.cnt != 0
-			     AND r.category = :category
-			     AND l.category = r.category
-			 WHERE NOT EXISTS (
-			     SELECT 1 FROM vogoo_ratings vr
-			     WHERE vr.member_id = :member_id2
-			       AND vr.category = :category2
-			       AND vr.product_id = l.item_id2
-			 )
-			 GROUP BY l.item_id2',
-				[
-					'member_id'  => $memberId,
-					'category'   => $cat,
-					'member_id2' => $memberId,
-					'category2'  => $cat,
-				],
-			)->fetchAll('assoc');
+			$rows = $this->connection->execute('
+				SELECT
+					l.`item_id2`,
+					SUM(l.`cnt`) AS cnter,
+					SUM(r.`rating` * l.`cnt` + l.`diff_slope`) AS diff
+				FROM `vogoo_links` l
+				INNER JOIN `vogoo_ratings` r ON r.`member_id` = :member_id AND
+				                               r.`rating` >= 0.0 AND
+				                               l.`item_id1` = r.`product_id` AND
+				                               l.`cnt` != 0 AND
+				                               r.`category` = :category AND
+				                               l.`category` = r.`category`
+				 WHERE NOT EXISTS (
+						SELECT 1 FROM `vogoo_ratings` vr
+						WHERE vr.`member_id` = :member_id2 AND
+						      vr.`category` = :category2 AND
+						      vr.`product_id` = l.`item_id2`
+				 )
+				GROUP BY l.`item_id2`
+			', [
+				'member_id'  => $memberId,
+				'category'   => $cat,
+				'member_id2' => $memberId,
+				'category2'  => $cat
+			])->fetchAll('assoc');
 			
 			$result = [];
 			
 			foreach ($rows as $row) {
+				if (!is_array($row) || !isset($row['item_id2'], $row['cnter'], $row['diff']) || !is_scalar($row['item_id2'])) {
+					continue;
+				}
+				
 				$id = (int)$row['item_id2'];
 				
 				if (!empty($filter) && !in_array($id, $filter, true)) {
@@ -387,7 +417,7 @@
 				
 				$result[] = [
 					'product_id' => $id,
-					'rating'     => $this->clampRating((float)$row['diff'] / (float)$row['cnter']),
+					'rating'     => $this->clampRating((float)$row['diff'] / (float)$row['cnter'])
 				];
 			}
 			
@@ -398,7 +428,6 @@
 		/**
 		 * Predict a rating for a single product for an anonymous visitor using
 		 * slope one. Returns null when there is insufficient data.
-		 *
 		 * @param VisitorContext $visitor
 		 * @param int $productId
 		 * @param int|null $category Defaults to configured default
@@ -420,19 +449,28 @@
 				return null;
 			}
 			
-			$rows = $this->connection->execute(
-				'SELECT item_id2, cnt, diff_slope
-			 FROM vogoo_links
-			 WHERE item_id1 = :product_id
-			   AND category = :category
-			   AND cnt > 0',
-				['product_id' => $productId, 'category' => $cat],
-			)->fetchAll('assoc');
+			$rows = $this->connection->execute('
+				SELECT
+					`item_id2`,
+					`cnt`,
+					`diff_slope`
+				FROM `vogoo_links`
+				WHERE `item_id1` = :product_id AND
+				      `category` = :category AND
+				      `cnt` > 0
+			', [
+				'product_id' => $productId,
+				'category'   => $cat
+			])->fetchAll('assoc');
 			
 			$numerator = 0.0;
 			$denominator = 0;
 			
 			foreach ($rows as $row) {
+				if (!is_array($row) || !isset($row['item_id2'], $row['cnt'], $row['diff_slope']) || !is_scalar($row['item_id2'])) {
+					continue;
+				}
+				
 				$id = (int)$row['item_id2'];
 				
 				if (isset($products[$id])) {
@@ -452,7 +490,6 @@
 		 * Predict ratings for all unrated items for an anonymous visitor using
 		 * slope one, returned as [['product_id' => int, 'rating' => float], ...]
 		 * sorted by predicted rating descending.
-		 *
 		 * @param VisitorContext $visitor
 		 * @param array<int> $filter When non-empty, only return product IDs in this set
 		 * @param int $limit Maximum number of results (0 = unlimited)
@@ -481,17 +518,27 @@
 			$accumulated = [];
 			
 			foreach ($products as $ratedProductId => $ratedRating) {
-				$rows = $this->connection->execute(
-					'SELECT item_id2, SUM(cnt) AS cnter, SUM(:rating * cnt + diff_slope) AS diff
-				 FROM vogoo_links
-				 WHERE item_id1 = :product_id
-				   AND cnt > 0
-				   AND category = :category
-				 GROUP BY item_id2',
-					['rating' => $ratedRating, 'product_id' => $ratedProductId, 'category' => $cat],
-				)->fetchAll('assoc');
+				$rows = $this->connection->execute('
+					SELECT
+						`item_id2`,
+						SUM(`cnt`) AS cnter,
+						SUM(:rating * `cnt` + `diff_slope`) AS diff
+					FROM `vogoo_links`
+					WHERE `item_id1` = :product_id AND
+					      `cnt` > 0 AND
+					      `category` = :category
+					GROUP BY `item_id2`
+				', [
+					'rating'     => $ratedRating,
+					'product_id' => $ratedProductId,
+					'category'   => $cat
+				])->fetchAll('assoc');
 				
 				foreach ($rows as $row) {
+					if (!is_array($row) || !isset($row['item_id2'], $row['cnter'], $row['diff']) || !is_scalar($row['item_id2'])) {
+						continue;
+					}
+					
 					$id = (int)$row['item_id2'];
 					
 					if (!empty($filter) && !in_array($id, $filter, true)) {
@@ -516,7 +563,7 @@
 				
 				$result[] = [
 					'product_id' => $id,
-					'rating'     => $this->clampRating($diff / $cnter),
+					'rating'     => $this->clampRating($diff / $cnter)
 				];
 			}
 			
@@ -530,6 +577,8 @@
 		
 		/**
 		 * Clamp a predicted rating to the valid [0.0, 1.0] range.
+		 * @param float $value
+		 * @return float
 		 */
 		private function clampRating(float $value): float {
 			return max(0.0, min(1.0, $value));
@@ -537,8 +586,7 @@
 		
 		/**
 		 * Extract a column from rows, optionally filtering by a whitelist of IDs.
-		 *
-		 * @param array<int, array<string, mixed>> $rows
+		 * @param array<int, mixed> $rows
 		 * @param string $column
 		 * @param array<int> $filter
 		 * @return array<int, int>

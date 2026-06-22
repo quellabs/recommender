@@ -19,18 +19,19 @@
 	class UserSimilarity {
 		
 		public function __construct(
-			private readonly Connection           $connection,
+			private readonly Connection $connection,
 			private readonly RecommendationConfig $config,
 			private readonly RecommendationEngine $engine,
-		) {}
+		) {
+		}
 		
 		/**
 		 * Return a similarity score in [0, 100] between two members.
 		 * 0 means no overlap or completely different taste; 100 means identical.
 		 *
-		 * @param int      $memberId1
-		 * @param int      $memberId2
-		 * @param int|null $category  Defaults to configured default
+		 * @param int $memberId1
+		 * @param int $memberId2
+		 * @param int|null $category Defaults to configured default
 		 */
 		public function memberSimilarity(int $memberId1, int $memberId2, ?int $category = null): int {
 			$cat = $this->config->resolveCategory($category);
@@ -41,19 +42,23 @@
 				return 0;
 			}
 			
-			$row = $this->connection->execute(
-				'SELECT COUNT(r2.product_id) AS c2,
-			        SUM((r2.rating - r1.rating) * (r2.rating - r1.rating)) AS s
-			 FROM vogoo_ratings r1
-			 INNER JOIN vogoo_ratings r2 ON r2.member_id = :member_id2
-			     AND r2.product_id = r1.product_id
-			     AND r2.category = r1.category
-			     AND r2.rating >= 0.0
-			 WHERE r1.member_id = :member_id1
-			   AND r1.category = :category
-			   AND r1.rating >= 0.0',
-				['member_id1' => $memberId1, 'member_id2' => $memberId2, 'category' => $cat],
-			)->fetchAssoc();
+			$row = $this->connection->execute('
+				SELECT
+					COUNT(r2.`product_id`) AS c2,
+					SUM((r2.`rating` - r1.`rating`) * (r2.`rating` - r1.`rating`)) AS s
+				FROM `vogoo_ratings` r1
+				INNER JOIN `vogoo_ratings` r2 ON r2.`member_id` = :member_id2 AND
+				                                 r2.`product_id` = r1.`product_id` AND
+				                                 r2.`category` = r1.`category` AND
+				                                 r2.`rating` >= 0.0
+				WHERE r1.`member_id` = :member_id1 AND
+				      r1.`category` = :category AND
+				      r1.`rating` >= 0.0
+			', [
+				'member_id1' => $memberId1,
+				'member_id2' => $memberId2,
+				'category'   => $cat
+			])->fetchAssoc();
 			
 			$nrCommonRatings = (int)$row['c2'];
 			
@@ -61,7 +66,7 @@
 				return 0;
 			}
 			
-			$cost   = $this->config->getCost();
+			$cost = $this->config->getCost();
 			$spread = (float)$row['s'] * $cost * $cost * 20.0;
 			
 			$tempFactor = $spread / $nrCommonRatings;
@@ -70,7 +75,7 @@
 				return 0;
 			}
 			
-			$thresholdNr   = $this->config->getThresholdNrCommonRatings();
+			$thresholdNr = $this->config->getThresholdNrCommonRatings();
 			$thresholdMult = $this->config->getThresholdMult();
 			
 			// Enough common ratings: return direct score
@@ -97,33 +102,36 @@
 		 * This performs a similarity calculation for every candidate neighbour —
 		 * for large member sets you should pre-compute and cache neighbour lists.
 		 *
-		 * @param int      $memberId
-		 * @param int      $minSimilarity Minimum score to include (0–100)
-		 * @param int      $limit         Maximum number of neighbours (0 = unlimited)
-		 * @param int|null $category      Defaults to configured default
+		 * @param int $memberId
+		 * @param int $minSimilarity Minimum score to include (0–100)
+		 * @param int $limit Maximum number of neighbours (0 = unlimited)
+		 * @param int|null $category Defaults to configured default
 		 * @return array<int, array{member_id: int, similarity: int}>
 		 */
 		public function getNeighbours(int $memberId, int $minSimilarity = 1, int $limit = 0, ?int $category = null): array {
 			$cat = $this->config->resolveCategory($category);
 			
 			// Fetch all members who have rated at least one product in common
-			$rows = $this->connection->execute(
-				'SELECT DISTINCT r2.member_id
-			 FROM vogoo_ratings r1
-			 INNER JOIN vogoo_ratings r2 ON r2.product_id = r1.product_id
-			     AND r2.category = r1.category
-			     AND r2.member_id <> :member_id
-			 WHERE r1.member_id = :member_id2
-			   AND r1.category = :category
-			   AND r1.rating >= 0.0
-			   AND r2.rating >= 0.0',
-				['member_id' => $memberId, 'member_id2' => $memberId, 'category' => $cat],
-			)->fetchAll('assoc');
+			$rows = $this->connection->execute('
+				SELECT DISTINCT r2.`member_id`
+				FROM `vogoo_ratings` r1
+				INNER JOIN `vogoo_ratings` r2 ON r2.`product_id` = r1.`product_id` AND
+				                                 r2.`category` = r1.`category` AND
+				                                 r2.`member_id` <> :member_id
+				WHERE r1.`member_id` = :member_id2 AND
+				      r1.`category` = :category AND
+				      r1.`rating` >= 0.0 AND
+				      r2.`rating` >= 0.0
+			', [
+				'member_id'  => $memberId,
+				'member_id2' => $memberId,
+				'category'   => $cat
+			])->fetchAll('assoc');
 			
 			$neighbours = [];
 			
 			foreach ($rows as $row) {
-				$otherId    = (int)$row['member_id'];
+				$otherId = (int)$row['member_id'];
 				$similarity = $this->memberSimilarity($memberId, $otherId, $cat);
 				
 				if ($similarity < $minSimilarity) {
@@ -142,15 +150,15 @@
 		 * have liked, weighted by similarity score.
 		 * Only returns items the member has not already rated.
 		 *
-		 * @param int        $memberId
-		 * @param int        $minSimilarity Minimum neighbour similarity to consider
-		 * @param array<int> $filter        When non-empty, only return product IDs in this set
-		 * @param int        $limit         Maximum number of results (0 = unlimited)
-		 * @param int|null   $category      Defaults to configured default
+		 * @param int $memberId
+		 * @param int $minSimilarity Minimum neighbour similarity to consider
+		 * @param array<int> $filter When non-empty, only return product IDs in this set
+		 * @param int $limit Maximum number of results (0 = unlimited)
+		 * @param int|null $category Defaults to configured default
 		 * @return array<int, int> List of product IDs ordered by score
 		 */
 		public function memberGetRecommendedItems(int $memberId, int $minSimilarity = 1, array $filter = [], int $limit = 0, ?int $category = null): array {
-			$cat       = $this->config->resolveCategory($category);
+			$cat = $this->config->resolveCategory($category);
 			$threshold = $this->config->getThresholdRating();
 			
 			$neighbours = $this->getNeighbours($memberId, $minSimilarity, 0, $cat);
@@ -159,30 +167,31 @@
 				return [];
 			}
 			
-			$scores  = [];
+			$scores = [];
 			$weights = [];
 			
 			foreach ($neighbours as ['member_id' => $neighbourId, 'similarity' => $similarity]) {
-				$rows = $this->connection->execute(
-					'SELECT product_id, rating
-				 FROM vogoo_ratings
-				 WHERE member_id = :member_id
-				   AND category = :category
-				   AND rating >= :threshold
-				   AND NOT EXISTS (
-				       SELECT 1 FROM vogoo_ratings vr
-				       WHERE vr.member_id = :target_member_id
-				         AND vr.category = :category2
-				         AND vr.product_id = vogoo_ratings.product_id
-				   )',
-					[
-						'member_id'        => $neighbourId,
-						'category'         => $cat,
-						'threshold'        => $threshold,
-						'target_member_id' => $memberId,
-						'category2'        => $cat,
-					],
-				)->fetchAll('assoc');
+				$rows = $this->connection->execute('
+					SELECT
+						`product_id`,
+						`rating`
+					FROM `vogoo_ratings`
+					WHERE `member_id` = :member_id AND
+					      `category` = :category AND
+					      `rating` >= :threshold AND
+					      NOT EXISTS (
+					      	SELECT 1 FROM `vogoo_ratings` vr
+					      	WHERE vr.`member_id` = :target_member_id AND
+					      	      vr.`category` = :category2 AND
+					      	      vr.`product_id` = `vogoo_ratings`.`product_id`
+					      )
+				', [
+					'member_id'        => $neighbourId,
+					'category'         => $cat,
+					'threshold'        => $threshold,
+					'target_member_id' => $memberId,
+					'category2'        => $cat
+				])->fetchAll('assoc');
 				
 				foreach ($rows as $row) {
 					$id = (int)$row['product_id'];
@@ -191,7 +200,7 @@
 						continue;
 					}
 					
-					$scores[$id]  = ($scores[$id] ?? 0.0) + $similarity * (float)$row['rating'];
+					$scores[$id] = ($scores[$id] ?? 0.0) + $similarity * (float)$row['rating'];
 					$weights[$id] = ($weights[$id] ?? 0) + $similarity;
 				}
 			}

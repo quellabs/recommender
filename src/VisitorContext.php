@@ -19,7 +19,8 @@
 		
 		public function __construct(
 			private readonly RecommendationConfig $config,
-		) {}
+		) {
+		}
 		
 		/**
 		 * Record or update a rating for a product in the given category.
@@ -40,7 +41,7 @@
 			$this->ratings[] = [
 				'product_id' => $productId,
 				'rating'     => $rating,
-				'category'   => $cat,
+				'category'   => $cat
 			];
 		}
 		

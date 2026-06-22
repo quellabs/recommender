@@ -69,18 +69,16 @@
 		 */
 		public function createInstance(string $className, array $dependencies, array $metadata, ?MethodContextInterface $methodContext = null): RecommendationConfig {
 			return new RecommendationConfig(
-				category:                 $this->getInt('category', 1),
+				category: $this->getInt('category', 1),
 				thresholdNrCommonRatings: $this->getInt('threshold_nr_common_ratings', 30),
-				thresholdMult:            $this->getInt('threshold_mult', 2),
-				thresholdRating:          $this->getFloat('threshold_rating', 0.66),
-				cost:                     $this->getFloat('cost', 5.0),
-				notInterested:            $this->getFloat('not_interested', -1.0),
-				directLinks:              $this->getBool('direct_links', false),
-				directSlope:              $this->getBool('direct_slope', true),
+				thresholdMult: $this->getInt('threshold_mult', 2),
+				thresholdRating: $this->getFloat('threshold_rating', 0.66),
+				cost: $this->getFloat('cost', 5.0),
+				notInterested: $this->getFloat('not_interested', -1.0),
+				directLinks: $this->getBool('direct_links', false),
+				directSlope: $this->getBool('direct_slope', true),
 			);
 		}
-		
-		// -------------------------------------------------------------------------
 		
 		private function getInt(string $key, int $default): int {
 			$value = $this->config[$key] ?? $default;
