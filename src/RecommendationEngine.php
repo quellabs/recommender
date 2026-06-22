@@ -16,13 +16,18 @@
 	 * All methods throw on database failure (CakePHP 5 execute() throws rather
 	 * than returning false). Wrap calls in try/catch if you need to handle errors.
 	 */
-	class RecommendationEngine {
+	readonly class RecommendationEngine {
 		
-		private readonly LinkUpdater $linkUpdater;
+		private LinkUpdater $linkUpdater;
 		
+		/**
+		 * RecommendationEngine constructor
+		 * @param Connection $connection
+		 * @param RecommendationConfig $config
+		 */
 		public function __construct(
-			private readonly Connection $connection,
-			private readonly RecommendationConfig $config,
+			private Connection $connection,
+			private RecommendationConfig $config,
 		) {
 			$this->linkUpdater = new LinkUpdater($connection, $config);
 		}

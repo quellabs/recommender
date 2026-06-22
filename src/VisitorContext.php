@@ -16,10 +16,14 @@
 		
 		/** @var array<int, array{product_id: int, rating: float, category: int}> */
 		private array $ratings = [];
+		private readonly RecommendationConfig $config;
 		
-		public function __construct(
-			private readonly RecommendationConfig $config,
-		) {
+		/**
+		 * VisitorContext constructor
+		 * @param RecommendationConfig $config
+		 */
+		public function __construct(RecommendationConfig $config) {
+			$this->config = $config;
 		}
 		
 		/**
@@ -27,6 +31,7 @@
 		 * @param int $productId
 		 * @param float $rating Use RecommendationConfig::getNotInterested() for "not interested"
 		 * @param int|null $category Defaults to the configured default category
+		 * @return void
 		 */
 		public function setRating(int $productId, float $rating, ?int $category = null): void {
 			$cat = $this->config->resolveCategory($category);
@@ -47,6 +52,9 @@
 		
 		/**
 		 * Mark a product as "not interested" for the given category.
+		 * @param int $productId
+		 * @param int|null $category
+		 * @return void
 		 */
 		public function setNotInterested(int $productId, ?int $category = null): void {
 			$this->setRating($productId, $this->config->getNotInterested(), $category);
@@ -54,6 +62,9 @@
 		
 		/**
 		 * Remove a rating for a product in the given category.
+		 * @param int $productId
+		 * @param int|null $category
+		 * @return void
 		 */
 		public function removeRating(int $productId, ?int $category = null): void {
 			$cat = $this->config->resolveCategory($category);
@@ -68,6 +79,7 @@
 		
 		/**
 		 * Return all ratings for the given category.
+		 * @param int|null $category
 		 * @return array<int, array{product_id: int, rating: float, category: int}>
 		 */
 		public function getRatings(?int $category = null): array {
@@ -80,12 +92,17 @@
 		
 		/**
 		 * Return all rated product IDs for the given category.
+		 * @param int|null $category
 		 * @return array<int, int>
 		 */
 		public function getRatedProductIds(?int $category = null): array {
 			return array_column($this->getRatings($category), 'product_id');
 		}
 		
+		/**
+		 * @param int|null $category
+		 * @return bool
+		 */
 		public function isEmpty(?int $category = null): bool {
 			return empty($this->getRatings($category));
 		}

@@ -16,13 +16,22 @@
 	 * All methods throw on database failure. Wrap calls in try/catch if you need
 	 * to handle errors.
 	 */
-	class UserSimilarity {
+	readonly class UserSimilarity {
 		
-		public function __construct(
-			private readonly Connection $connection,
-			private readonly RecommendationConfig $config,
-			private readonly RecommendationEngine $engine,
-		) {
+		private Connection $connection;
+		private RecommendationConfig $config;
+		private RecommendationEngine $engine;
+		
+		/**
+		 * UserSimilarity constructor
+		 * @param Connection $connection
+		 * @param RecommendationConfig $config
+		 * @param RecommendationEngine $engine
+		 */
+		public function __construct(Connection $connection, RecommendationConfig $config, RecommendationEngine $engine) {
+			$this->engine = $engine;
+			$this->config = $config;
+			$this->connection = $connection;
 		}
 		
 		/**
