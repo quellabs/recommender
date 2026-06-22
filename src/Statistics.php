@@ -14,9 +14,10 @@
 	class Statistics {
 		
 		public function __construct(
-			private readonly Connection           $connection,
+			private readonly Connection $connection,
 			private readonly RecommendationConfig $config,
-		) {}
+		) {
+		}
 		
 		/**
 		 * Return the number of distinct members who have given at least one rating.
@@ -39,7 +40,7 @@
 		 * @return array<int, int>
 		 */
 		public function members(?int $category = null): array {
-			$cat  = $this->config->resolveCategory($category);
+			$cat = $this->config->resolveCategory($category);
 			$rows = $this->connection->execute(
 				'SELECT DISTINCT member_id FROM vogoo_ratings WHERE category = :category',
 				['category' => $cat],
@@ -79,7 +80,7 @@
 		 * Return the most-rated products as [['product_id' => int, 'num_ratings' => int], ...]
 		 * ordered by rating count descending.
 		 *
-		 * @param int      $limit    Maximum number of results (0 = unlimited)
+		 * @param int $limit Maximum number of results (0 = unlimited)
 		 * @param int|null $category Defaults to configured default
 		 * @return array<int, array{product_id: int, num_ratings: int}>
 		 */
@@ -96,8 +97,7 @@
 			$params = ['category' => $cat];
 			
 			if ($limit > 0) {
-				$sql .= ' LIMIT :limit';
-				$params['limit'] = $limit;
+				$sql .= ' LIMIT ' . $limit;
 			}
 			
 			$rows = $this->connection->execute($sql, $params)->fetchAll('assoc');
@@ -113,9 +113,9 @@
 		 * ordered by average rating descending. Products with fewer than $minRatings
 		 * ratings are excluded.
 		 *
-		 * @param int      $limit      Maximum number of results (0 = unlimited)
-		 * @param int      $minRatings Minimum number of ratings to qualify
-		 * @param int|null $category   Defaults to configured default
+		 * @param int $limit Maximum number of results (0 = unlimited)
+		 * @param int $minRatings Minimum number of ratings to qualify
+		 * @param int|null $category Defaults to configured default
 		 * @return array<int, array{product_id: int, avg_rating: float}>
 		 */
 		public function topRatedProducts(int $limit = 10, int $minRatings = 1, ?int $category = null): array {
@@ -132,8 +132,7 @@
 			$params = ['category' => $cat, 'min_ratings' => $minRatings];
 			
 			if ($limit > 0) {
-				$sql .= ' LIMIT :limit';
-				$params['limit'] = $limit;
+				$sql .= ' LIMIT ' . $limit;
 			}
 			
 			$rows = $this->connection->execute($sql, $params)->fetchAll('assoc');

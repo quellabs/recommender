@@ -24,9 +24,10 @@
 	class ItemRecommender {
 		
 		public function __construct(
-			private readonly Connection           $connection,
+			private readonly Connection $connection,
 			private readonly RecommendationConfig $config,
-		) {}
+		) {
+		}
 		
 		// -------------------------------------------------------------------------
 		// Links (co-occurrence)
@@ -36,10 +37,10 @@
 		 * Return items that co-occur with the given product, ordered by
 		 * co-occurrence count descending.
 		 *
-		 * @param int        $productId
-		 * @param array<int> $filter    When non-empty, only return product IDs in this set
-		 * @param int        $limit     Maximum number of results (0 = unlimited)
-		 * @param int|null   $category  Defaults to configured default
+		 * @param int $productId
+		 * @param array<int> $filter When non-empty, only return product IDs in this set
+		 * @param int $limit Maximum number of results (0 = unlimited)
+		 * @param int|null $category Defaults to configured default
 		 * @return array<int, int> List of product IDs
 		 */
 		public function getLinkedItems(int $productId, array $filter = [], int $limit = 0, ?int $category = null): array {
@@ -54,8 +55,7 @@
 			$params = ['product_id' => $productId, 'category' => $cat];
 			
 			if ($limit > 0) {
-				$sql .= ' LIMIT :limit';
-				$params['limit'] = $limit;
+				$sql .= ' LIMIT ' . $limit;
 			}
 			
 			$rows = $this->connection->execute($sql, $params)->fetchAll('assoc');
@@ -67,14 +67,14 @@
 		 * weighted co-occurrence score descending.
 		 * Only returns items the member has not already rated.
 		 *
-		 * @param int        $memberId
-		 * @param array<int> $filter   When non-empty, only return product IDs in this set
-		 * @param int        $limit    Maximum number of results (0 = unlimited)
-		 * @param int|null   $category Defaults to configured default
+		 * @param int $memberId
+		 * @param array<int> $filter When non-empty, only return product IDs in this set
+		 * @param int $limit Maximum number of results (0 = unlimited)
+		 * @param int|null $category Defaults to configured default
 		 * @return array<int, int> List of product IDs
 		 */
 		public function memberGetRecommendedItems(int $memberId, array $filter = [], int $limit = 0, ?int $category = null): array {
-			$cat       = $this->config->resolveCategory($category);
+			$cat = $this->config->resolveCategory($category);
 			$threshold = $this->config->getThresholdRating();
 			
 			$sql = 'SELECT l.item_id2, SUM(l.cnt * (r.rating - :threshold)) AS cnter
@@ -103,8 +103,7 @@
 			];
 			
 			if ($limit > 0) {
-				$sql .= ' LIMIT :limit';
-				$params['limit'] = $limit;
+				$sql .= ' LIMIT ' . $limit;
 			}
 			
 			$rows = $this->connection->execute($sql, $params)->fetchAll('assoc');
@@ -115,14 +114,14 @@
 		 * Return the products this member has already rated that are linked to the
 		 * given product — the "why we recommend this" list.
 		 *
-		 * @param int      $memberId
-		 * @param int      $productId
-		 * @param int      $limit     Maximum number of results (0 = unlimited)
-		 * @param int|null $category  Defaults to configured default
+		 * @param int $memberId
+		 * @param int $productId
+		 * @param int $limit Maximum number of results (0 = unlimited)
+		 * @param int|null $category Defaults to configured default
 		 * @return array<int, int> List of product IDs
 		 */
 		public function memberGetReasons(int $memberId, int $productId, int $limit = 0, ?int $category = null): array {
-			$cat       = $this->config->resolveCategory($category);
+			$cat = $this->config->resolveCategory($category);
 			$threshold = $this->config->getThresholdRating();
 			
 			$sql = 'SELECT r.product_id
@@ -143,8 +142,7 @@
 			];
 			
 			if ($limit > 0) {
-				$sql .= ' LIMIT :limit';
-				$params['limit'] = $limit;
+				$sql .= ' LIMIT ' . $limit;
 			}
 			
 			$rows = $this->connection->execute($sql, $params)->fetchAll('assoc');
@@ -156,22 +154,22 @@
 		 * Ratings are read from the provided VisitorContext rather than the database.
 		 *
 		 * @param VisitorContext $visitor
-		 * @param array<int>     $filter   When non-empty, only return product IDs in this set
-		 * @param int            $limit    Maximum number of results (0 = unlimited)
-		 * @param int|null       $category Defaults to configured default
+		 * @param array<int> $filter When non-empty, only return product IDs in this set
+		 * @param int $limit Maximum number of results (0 = unlimited)
+		 * @param int|null $category Defaults to configured default
 		 * @return array<int, int> List of product IDs
 		 */
 		public function visitorGetRecommendedItems(VisitorContext $visitor, array $filter = [], int $limit = 0, ?int $category = null): array {
-			$cat       = $this->config->resolveCategory($category);
+			$cat = $this->config->resolveCategory($category);
 			$threshold = $this->config->getThresholdRating();
-			$ratings   = $visitor->getRatings($cat);
+			$ratings = $visitor->getRatings($cat);
 			
 			if (empty($ratings)) {
 				return [];
 			}
 			
 			$ratedIds = array_column($ratings, 'product_id');
-			$scores   = [];
+			$scores = [];
 			
 			foreach ($ratings as $entry) {
 				if ($entry['rating'] === $this->config->getNotInterested()) {
@@ -213,15 +211,15 @@
 		 * product — the "why we recommend this" list for anonymous visitors.
 		 *
 		 * @param VisitorContext $visitor
-		 * @param int            $productId
-		 * @param int            $limit     Maximum number of results (0 = unlimited)
-		 * @param int|null       $category  Defaults to configured default
+		 * @param int $productId
+		 * @param int $limit Maximum number of results (0 = unlimited)
+		 * @param int|null $category Defaults to configured default
 		 * @return array<int, int> List of product IDs
 		 */
 		public function visitorGetReasons(VisitorContext $visitor, int $productId, int $limit = 0, ?int $category = null): array {
-			$cat       = $this->config->resolveCategory($category);
+			$cat = $this->config->resolveCategory($category);
 			$threshold = $this->config->getThresholdRating();
-			$ratings   = $visitor->getRatings($cat);
+			$ratings = $visitor->getRatings($cat);
 			
 			$likedIds = array_column(
 				array_filter($ratings, fn($e) => $e['rating'] >= $threshold),
@@ -257,11 +255,11 @@
 		 * Return items sorted by their average slope one diff relative to the given
 		 * product, ordered best-match first.
 		 *
-		 * @param int        $productId
-		 * @param int        $minLinks   Minimum co-occurrence count to include a pair
-		 * @param array<int> $filter     When non-empty, only return product IDs in this set
-		 * @param int        $limit      Maximum number of results (0 = unlimited)
-		 * @param int|null   $category   Defaults to configured default
+		 * @param int $productId
+		 * @param int $minLinks Minimum co-occurrence count to include a pair
+		 * @param array<int> $filter When non-empty, only return product IDs in this set
+		 * @param int $limit Maximum number of results (0 = unlimited)
+		 * @param int|null $category Defaults to configured default
 		 * @return array<int, array{product_id: int, diff: float}>
 		 */
 		public function getSlopeItems(int $productId, int $minLinks = 1, array $filter = [], int $limit = 0, ?int $category = null): array {
@@ -278,11 +276,10 @@
 			$params = ['product_id' => $productId, 'category' => $cat, 'min_links' => $minLinks];
 			
 			if ($limit > 0) {
-				$sql .= ' LIMIT :limit';
-				$params['limit'] = $limit;
+				$sql .= ' LIMIT ' . $limit;
 			}
 			
-			$rows   = $this->connection->execute($sql, $params)->fetchAll('assoc');
+			$rows = $this->connection->execute($sql, $params)->fetchAll('assoc');
 			$result = [];
 			
 			foreach ($rows as $row) {
@@ -302,9 +299,9 @@
 		 * Predict a member's rating for a single product using slope one.
 		 * Returns null when there is insufficient data to make a prediction.
 		 *
-		 * @param int      $memberId
-		 * @param int      $productId
-		 * @param int|null $category  Defaults to configured default
+		 * @param int $memberId
+		 * @param int $productId
+		 * @param int|null $category Defaults to configured default
 		 * @return float|null Predicted rating in [0.0, 1.0], or null
 		 */
 		public function memberPredict(int $memberId, int $productId, ?int $category = null): ?float {
@@ -334,10 +331,10 @@
 		 * returned as [['product_id' => int, 'rating' => float], ...] sorted
 		 * by predicted rating descending.
 		 *
-		 * @param int        $memberId
-		 * @param array<int> $filter   When non-empty, only return product IDs in this set
-		 * @param int        $limit    Maximum number of results (0 = unlimited)
-		 * @param int|null   $category Defaults to configured default
+		 * @param int $memberId
+		 * @param array<int> $filter When non-empty, only return product IDs in this set
+		 * @param int $limit Maximum number of results (0 = unlimited)
+		 * @param int|null $category Defaults to configured default
 		 * @return array<int, array{product_id: int, rating: float}>
 		 */
 		public function memberPredictAll(int $memberId, array $filter = [], int $limit = 0, ?int $category = null): array {
@@ -393,12 +390,12 @@
 		 * slope one. Returns null when there is insufficient data.
 		 *
 		 * @param VisitorContext $visitor
-		 * @param int            $productId
-		 * @param int|null       $category  Defaults to configured default
+		 * @param int $productId
+		 * @param int|null $category Defaults to configured default
 		 * @return float|null Predicted rating in [0.0, 1.0], or null
 		 */
 		public function visitorPredict(VisitorContext $visitor, int $productId, ?int $category = null): ?float {
-			$cat     = $this->config->resolveCategory($category);
+			$cat = $this->config->resolveCategory($category);
 			$ratings = $visitor->getRatings($cat);
 			
 			$products = [];
@@ -422,14 +419,14 @@
 				['product_id' => $productId, 'category' => $cat],
 			)->fetchAll('assoc');
 			
-			$numerator   = 0.0;
+			$numerator = 0.0;
 			$denominator = 0;
 			
 			foreach ($rows as $row) {
 				$id = (int)$row['item_id2'];
 				
 				if (isset($products[$id])) {
-					$numerator   += $products[$id] * (int)$row['cnt'] - (float)$row['diff_slope'];
+					$numerator += $products[$id] * (int)$row['cnt'] - (float)$row['diff_slope'];
 					$denominator += (int)$row['cnt'];
 				}
 			}
@@ -447,13 +444,13 @@
 		 * sorted by predicted rating descending.
 		 *
 		 * @param VisitorContext $visitor
-		 * @param array<int>     $filter   When non-empty, only return product IDs in this set
-		 * @param int            $limit    Maximum number of results (0 = unlimited)
-		 * @param int|null       $category Defaults to configured default
+		 * @param array<int> $filter When non-empty, only return product IDs in this set
+		 * @param int $limit Maximum number of results (0 = unlimited)
+		 * @param int|null $category Defaults to configured default
 		 * @return array<int, array{product_id: int, rating: float}>
 		 */
 		public function visitorPredictAll(VisitorContext $visitor, array $filter = [], int $limit = 0, ?int $category = null): array {
-			$cat     = $this->config->resolveCategory($category);
+			$cat = $this->config->resolveCategory($category);
 			$ratings = $visitor->getRatings($cat);
 			
 			$products = [];
@@ -462,7 +459,7 @@
 			foreach ($ratings as $entry) {
 				if ($entry['rating'] >= 0.0) {
 					$products[$entry['product_id']] = $entry['rating'];
-					$ratedIds[]                      = $entry['product_id'];
+					$ratedIds[] = $entry['product_id'];
 				}
 			}
 			
@@ -532,8 +529,8 @@
 		 * Extract a column from rows, optionally filtering by a whitelist of IDs.
 		 *
 		 * @param array<int, array<string, mixed>> $rows
-		 * @param string                           $column
-		 * @param array<int>                       $filter
+		 * @param string $column
+		 * @param array<int> $filter
 		 * @return array<int, int>
 		 */
 		private function filterAndExtract(array $rows, string $column, array $filter): array {
