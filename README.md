@@ -27,7 +27,7 @@ composer require quellabs/recommender
 sculpt recommender:init
 ```
 
-This copies `config/recommender.php` to your project root. Edit it to set your database credentials and tune the engine constants.
+This copies `config/recommender.php` to your project root. Edit it to tune the engine constants. Database credentials are read from `config/database.php`, which is shared with other Canvas packages.
 
 ### 2. Create the database tables
 
@@ -84,15 +84,6 @@ All options with their defaults:
 ```php
 // config/recommender.php
 return [
-    // Database connection
-    'driver'   => 'mysql',
-    'host'     => 'localhost',
-    'database' => '',
-    'username' => '',
-    'password' => '',
-    'port'     => 3306,
-    'encoding' => 'utf8mb4',
-
     // Default category used when no category is passed to engine methods
     'category' => 1,
 

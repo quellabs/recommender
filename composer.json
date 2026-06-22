@@ -26,7 +26,10 @@
       },
       "sculpt": {
         "provider": "Quellabs\\Recommender\\Sculpt\\RecommenderProvider",
-        "config": "config/database.php"
+        "config": [
+          "config/database.php",
+          "config/recommender.php"
+        ]
       }
     }
   }

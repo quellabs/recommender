@@ -11,17 +11,16 @@
 	 * Registers quellabs/recommender commands with the Sculpt CLI.
 	 *
 	 * Sculpt discovers this provider automatically via the "discover" section
-	 * in composer.json. Config is loaded from the file(s) listed there and
-	 * injected by the framework via setConfig() before register() is called.
+	 * in composer.json. Database credentials are read from config/database.php
+	 * (shared with other Canvas packages). Recommender-specific settings are
+	 * read from config/recommender.php.
 	 *
 	 * Minimal config/recommender.php example:
 	 *
 	 *   return [
-	 *       'driver'   => 'mysql',
-	 *       'host'     => 'localhost',
-	 *       'database' => 'mydb',
-	 *       'username' => 'root',
-	 *       'password' => '',
+	 *       'category'      => 1,
+	 *       'direct_slope'  => true,
+	 *       'direct_links'  => false,
 	 *   ];
 	 */
 	class RecommenderProvider extends ServiceProvider {
@@ -38,19 +37,11 @@
 		
 		/**
 		 * Returns the default configuration values.
+		 * Database defaults are intentionally absent — they are read from database.php.
 		 * @return array<string, mixed>
 		 */
 		public static function getDefaults(): array {
 			return [
-				'driver'                      => 'mysql',
-				'host'                        => 'localhost',
-				'database'                    => '',
-				'username'                    => '',
-				'password'                    => '',
-				'port'                        => 3306,
-				'encoding'                    => 'utf8mb4',
-				
-				// RecommendationConfig defaults
 				'category'                    => 1,
 				'threshold_nr_common_ratings' => 30,
 				'threshold_mult'              => 2,
@@ -64,6 +55,8 @@
 		
 		/**
 		 * Register all recommender commands with the Sculpt application.
+		 * @param Application $application
+		 * @return void
 		 */
 		public function register(Application $application): void {
 			$this->registerCommands($application, [
@@ -75,6 +68,9 @@
 		
 		/**
 		 * Return a configured CakePHP Connection instance (singleton).
+		 * Database credentials are read from config/database.php, which is
+		 * listed as a config source alongside config/recommender.php in composer.json.
+		 * @return Connection
 		 */
 		public function getConnection(): Connection {
 			if ($this->connection !== null) {
@@ -95,7 +91,8 @@
 		}
 		
 		/**
-		 * Return a RecommendationConfig instance built from the loaded config (singleton).
+		 * Return a RecommendationConfig instance built from config/recommender.php (singleton).
+		 * @return RecommendationConfig
 		 */
 		public function getRecommendationConfig(): RecommendationConfig {
 			if ($this->recommendationConfig !== null) {
@@ -120,6 +117,9 @@
 		
 		/**
 		 * Retrieve a float value from config, falling back to the provided default.
+		 * @param string $key
+		 * @param float $default
+		 * @return float
 		 */
 		private function getConfigValueAsFloat(string $key, float $default): float {
 			$value = $this->getConfigValue($key);
@@ -128,6 +128,8 @@
 		
 		/**
 		 * Resolve a short driver name to a fully qualified CakePHP driver class.
+		 * @param string $driver
+		 * @return string
 		 */
 		private function resolveDriver(string $driver): string {
 			$driverMap = [
