@@ -113,8 +113,6 @@
 			return $this->recommendationConfig;
 		}
 		
-		// -------------------------------------------------------------------------
-		
 		/**
 		 * Retrieve a float value from config, falling back to the provided default.
 		 * @param string $key

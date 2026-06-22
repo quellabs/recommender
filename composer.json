@@ -13,6 +13,9 @@
     "php": ">=8.2",
     "cakephp/database": "^5.0"
   },
+  "suggest": {
+    "quellabs/canvas-database": "Provides Connection autowiring for Canvas applications via the DI container"
+  },
   "autoload": {
     "psr-4": {
       "Quellabs\\Recommender\\": "src/"
