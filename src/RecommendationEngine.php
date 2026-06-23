@@ -22,8 +22,8 @@
 		
 		/**
 		 * RecommendationEngine constructor
-		 * @param Connection $connection
-		 * @param RecommendationConfig $config
+		 * @param Connection $connection The CakePHP database connection
+		 * @param RecommendationConfig $config The recommendation configuration
 		 */
 		public function __construct(
 			private Connection $connection,
@@ -38,11 +38,11 @@
 		
 		/**
 		 * Return the number of ratings a member has given.
-		 *
-		 * @param int $memberId
+		 * @param int $memberId The member ID
 		 * @param bool $realRatings When true, count genuine ratings (>= 0.0)
 		 * @param bool $notInterested When true, count "not interested" ratings instead
 		 * @param int|null $category Defaults to configured default
+		 * @return int
 		 */
 		public function memberNumRatings(int $memberId, bool $realRatings = true, bool $notInterested = false, ?int $category = null): int {
 			$cat = $this->config->resolveCategory($category);
@@ -76,7 +76,7 @@
 		/**
 		 * Return the average rating this member has given.
 		 * Returns 0.0 when the member has no ratings.
-		 * @param int $memberId
+		 * @param int $memberId The member ID
 		 * @param int|null $category Defaults to configured default
 		 */
 		public function memberAverageRating(int $memberId, ?int $category = null): float {
@@ -100,8 +100,7 @@
 		/**
 		 * Return all ratings for a member as an array of
 		 * ['product_id' => int, 'rating' => float, 'ts' => string].
-		 *
-		 * @param int $memberId
+		 * @param int $memberId The member ID
 		 * @param bool $orderByDate Order by timestamp
 		 * @param bool $orderByRating Order by rating value
 		 * @param bool $ascending Sort direction
@@ -149,9 +148,10 @@
 		 * Delete all ratings for a member. When incremental link updates are
 		 * enabled, each rating is removed via deleteRating() to keep vogoo_links
 		 * consistent.
-		 *
-		 * @param int $memberId
+		 * @param int $memberId The member ID
 		 * @param int|null $category Defaults to configured default
+		 * @return void
+		 * @throws \Exception
 		 */
 		public function deleteMember(int $memberId, ?int $category = null): void {
 			$cat = $this->config->resolveCategory($category);
@@ -191,9 +191,9 @@
 		
 		/**
 		 * Return the number of genuine ratings a product has received.
-		 *
-		 * @param int $productId
+		 * @param int $productId The product ID
 		 * @param int|null $category Defaults to configured default
+		 * @return int
 		 */
 		public function productNumRatings(int $productId, ?int $category = null): int {
 			$cat = $this->config->resolveCategory($category);
@@ -216,9 +216,9 @@
 		/**
 		 * Return the average genuine rating for a product. Returns 0.0 when no
 		 * ratings exist.
-		 *
-		 * @param int $productId
+		 * @param int $productId The product ID
 		 * @param int|null $category Defaults to configured default
+		 * @return float
 		 */
 		public function productAverageRating(int $productId, ?int $category = null): float {
 			$cat = $this->config->resolveCategory($category);
@@ -241,11 +241,10 @@
 		/**
 		 * Return all ratings for a product as an array of
 		 * ['member_id' => int, 'rating' => float, 'ts' => string].
-		 *
-		 * @param int $productId
-		 * @param bool $orderByDate
-		 * @param bool $orderByRating
-		 * @param bool $ascending
+		 * @param int $productId The product ID
+		 * @param bool $orderByDate Order by timestamp
+		 * @param bool $orderByRating Order by rating value
+		 * @param bool $ascending Sort direction
 		 * @param int|null $category Defaults to configured default
 		 * @return array<int, array{member_id: int, rating: float, ts: string}>
 		 */
@@ -280,9 +279,9 @@
 		 * Delete all ratings for a product. When incremental link updates are
 		 * enabled, each rating is removed via deleteRating() to keep vogoo_links
 		 * consistent.
-		 *
-		 * @param int $productId
+		 * @param int $productId The product ID
 		 * @param int|null $category Defaults to configured default
+		 * @throws \Exception
 		 */
 		public function deleteProduct(int $productId, ?int $category = null): void {
 			$cat = $this->config->resolveCategory($category);
@@ -324,9 +323,8 @@
 		 * Return the rating and timestamp for a specific member/product pair as
 		 * ['rating' => float, 'ts' => string], or an empty array when no rating
 		 * exists.
-		 *
-		 * @param int $memberId
-		 * @param int $productId
+		 * @param int $memberId The member ID
+		 * @param int $productId The product ID
 		 * @param bool $notInterested Include "not interested" ratings
 		 * @param int|null $category Defaults to configured default
 		 * @return array{rating: float, ts: string}|array{}
@@ -366,11 +364,11 @@
 		/**
 		 * Set or update a rating for a member/product pair.
 		 * Triggers incremental link/slope updates if enabled.
-		 *
-		 * @param int $memberId
-		 * @param int $productId
+		 * @param int $memberId The member ID
+		 * @param int $productId The product ID
 		 * @param float $rating Must be in [0.0, 1.0] or equal getNotInterested()
 		 * @param int|null $category Defaults to configured default
+		 * @throws \Exception
 		 */
 		public function setRating(int $memberId, int $productId, float $rating, ?int $category = null): bool {
 			$cat = $this->config->resolveCategory($category);
@@ -382,7 +380,10 @@
 			// Write the rating together with its incremental link/slope updates in a
 			// single transaction so vogoo_links can never end up inconsistent with
 			// vogoo_ratings if one of the statements fails.
-			return $this->connection->transactional(function () use ($memberId, $productId, $cat, $rating): bool {
+			//
+			// transactional() is declared to return mixed, which erases the closure's
+			// bool return; cast so the method's declared bool return type still holds.
+			return (bool) $this->connection->transactional(function () use ($memberId, $productId, $cat, $rating): bool {
 				$previous = $this->fetchExistingRating($memberId, $productId, $cat);
 				
 				// -1.0 sentinel marks "no previous rating" for the link/slope updates
@@ -397,12 +398,12 @@
 		/**
 		 * Record an implicit rating from a purchase (1.0) or a click (0.7, or
 		 * increment by 0.01 if already rated below 1.0).
-		 *
-		 * @param int $memberId
-		 * @param int $productId
+		 * @param int $memberId The member ID
+		 * @param int $productId The product ID
 		 * @param bool $purchase True for a purchase, false for a click
 		 * @param int|null $category Defaults to configured default
 		 * @return bool
+		 * @throws \Exception
 		 */
 		public function automaticRating(int $memberId, int $productId, bool $purchase, ?int $category = null): bool {
 			$cat = $this->config->resolveCategory($category);
@@ -427,11 +428,11 @@
 		
 		/**
 		 * Mark a product as "not interested" for a member.
-		 *
-		 * @param int $memberId
-		 * @param int $productId
+		 * @param int $memberId The member ID
+		 * @param int $productId The product ID
 		 * @param int|null $category Defaults to configured default
 		 * @return bool
+		 * @throws \Exception
 		 */
 		public function setNotInterested(int $memberId, int $productId, ?int $category = null): bool {
 			return $this->setRating($memberId, $productId, $this->config->getNotInterested(), $category);
@@ -440,9 +441,8 @@
 		/**
 		 * Delete a single member/product rating.
 		 * Triggers incremental link/slope cleanup if enabled.
-		 *
-		 * @param int $memberId
-		 * @param int $productId
+		 * @param int $memberId The member ID
+		 * @param int $productId The product ID
 		 * @param int|null $category Defaults to configured default
 		 * @throws \Exception
 		 */
@@ -481,8 +481,8 @@
 		/**
 		 * Return the member's current rating for a product, or null when no rating
 		 * row exists. Drives the INSERT/UPDATE choice and the incremental updates.
-		 * @param int $memberId
-		 * @param int $productId
+		 * @param int $memberId The member ID
+		 * @param int $productId The product ID
 		 * @param int $category Already-resolved category
 		 * @return float|null
 		 */
@@ -506,11 +506,11 @@
 		 * Fire the incremental link and slope updates that are enabled in config.
 		 * A -1.0 sentinel in $rating or $previous means the rating is being created
 		 * or deleted respectively.
-		 * @param int $memberId
-		 * @param int $productId
+		 * @param int $memberId The member ID
+		 * @param int $productId The product ID
 		 * @param int $category Already-resolved category
-		 * @param float $rating
-		 * @param float $previous
+		 * @param float $rating The rating value
+		 * @param float $previous The previous rating, or -1.0 when there was none
 		 * @return void
 		 * @throws \Exception
 		 */
@@ -526,10 +526,10 @@
 		
 		/**
 		 * Update an existing rating row, refreshing its timestamp.
-		 * @param int $memberId
-		 * @param int $productId
+		 * @param int $memberId The member ID
+		 * @param int $productId The product ID
 		 * @param int $category Already-resolved category
-		 * @param float $rating
+		 * @param float $rating The rating value
 		 * @return bool True when exactly one row was updated
 		 */
 		private function updateRatingRow(int $memberId, int $productId, int $category, float $rating): bool {
@@ -551,10 +551,10 @@
 		
 		/**
 		 * Insert a new rating row.
-		 * @param int $memberId
-		 * @param int $productId
+		 * @param int $memberId The member ID
+		 * @param int $productId The product ID
 		 * @param int $category Already-resolved category
-		 * @param float $rating
+		 * @param float $rating The rating value
 		 * @return bool True when exactly one row was inserted
 		 */
 		private function insertRatingRow(int $memberId, int $productId, int $category, float $rating): bool {

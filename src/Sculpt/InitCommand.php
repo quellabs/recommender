@@ -92,7 +92,7 @@ HELP;
 		
 		/**
 		 * Create the vogoo_ratings table.
-		 * @param Connection $connection
+		 * @param Connection $connection The CakePHP database connection
 		 * @return void
 		 */
 		private function createRatingsTable(Connection $connection): void {
@@ -115,7 +115,7 @@ HELP;
 		
 		/**
 		 * Create the vogoo_links table.
-		 * @param Connection $connection
+		 * @param Connection $connection The CakePHP database connection
 		 * @return void
 		 */
 		private function createLinksTable(Connection $connection): void {

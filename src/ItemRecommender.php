@@ -27,8 +27,8 @@
 		
 		/**
 		 * ItemRecommender constructor
-		 * @param Connection $connection
-		 * @param RecommendationConfig $config
+		 * @param Connection $connection The CakePHP database connection
+		 * @param RecommendationConfig $config The recommendation configuration
 		 */
 		public function __construct(Connection $connection, RecommendationConfig $config) {
 			$this->config = $config;
@@ -42,7 +42,7 @@
 		/**
 		 * Return items that co-occur with the given product, ordered by
 		 * co-occurrence count descending.
-		 * @param int $productId
+		 * @param int $productId The product ID
 		 * @param array<int> $filter When non-empty, only return product IDs in this set
 		 * @param int $limit Maximum number of results (0 = unlimited)
 		 * @param int|null $category Defaults to configured default
@@ -77,7 +77,7 @@
 		 * Return recommended items for a member using item-based CF, ordered by
 		 * weighted co-occurrence score descending.
 		 * Only returns items the member has not already rated.
-		 * @param int $memberId
+		 * @param int $memberId The member ID
 		 * @param array<int> $filter When non-empty, only return product IDs in this set
 		 * @param int $limit Maximum number of results (0 = unlimited)
 		 * @param int|null $category Defaults to configured default
@@ -128,8 +128,8 @@
 		/**
 		 * Return the products this member has already rated that are linked to the
 		 * given product — the "why we recommend this" list.
-		 * @param int $memberId
-		 * @param int $productId
+		 * @param int $memberId The member ID
+		 * @param int $productId The product ID
 		 * @param int $limit Maximum number of results (0 = unlimited)
 		 * @param int|null $category Defaults to configured default
 		 * @return array<int, int> List of product IDs
@@ -169,7 +169,7 @@
 		/**
 		 * Return recommended items for an anonymous visitor using item-based CF.
 		 * Ratings are read from the provided VisitorContext rather than the database.
-		 * @param VisitorContext $visitor
+		 * @param VisitorContext $visitor The visitor context holding the current session's ratings
 		 * @param array<int> $filter When non-empty, only return product IDs in this set
 		 * @param int $limit Maximum number of results (0 = unlimited)
 		 * @param int|null $category Defaults to configured default
@@ -194,8 +194,8 @@
 		/**
 		 * Return the visitor's already-rated products that are linked to the given
 		 * product — the "why we recommend this" list for anonymous visitors.
-		 * @param VisitorContext $visitor
-		 * @param int $productId
+		 * @param VisitorContext $visitor The visitor context holding the current session's ratings
+		 * @param int $productId The product ID
 		 * @param int $limit Maximum number of results (0 = unlimited)
 		 * @param int|null $category Defaults to configured default
 		 * @return array<int, int> List of product IDs
@@ -240,7 +240,7 @@
 		/**
 		 * Return items sorted by their average slope one diff relative to the given
 		 * product, ordered best-match first.
-		 * @param int $productId
+		 * @param int $productId The product ID
 		 * @param int $minLinks Minimum co-occurrence count to include a pair
 		 * @param array<int> $filter When non-empty, only return product IDs in this set
 		 * @param int $limit Maximum number of results (0 = unlimited)
@@ -297,8 +297,8 @@
 		/**
 		 * Predict a member's rating for a single product using slope one.
 		 * Returns null when there is insufficient data to make a prediction.
-		 * @param int $memberId
-		 * @param int $productId
+		 * @param int $memberId The member ID
+		 * @param int $productId The product ID
 		 * @param int|null $category Defaults to configured default
 		 * @return float|null Predicted rating in [0.0, 1.0], or null
 		 */
@@ -332,7 +332,7 @@
 		 * Predict ratings for all unrated items for a member using slope one,
 		 * returned as [['product_id' => int, 'rating' => float], ...] sorted
 		 * by predicted rating descending.
-		 * @param int $memberId
+		 * @param int $memberId The member ID
 		 * @param array<int> $filter When non-empty, only return product IDs in this set
 		 * @param int $limit Maximum number of results (0 = unlimited)
 		 * @param int|null $category Defaults to configured default
@@ -394,8 +394,8 @@
 		/**
 		 * Predict a rating for a single product for an anonymous visitor using
 		 * slope one. Returns null when there is insufficient data.
-		 * @param VisitorContext $visitor
-		 * @param int $productId
+		 * @param VisitorContext $visitor The visitor context holding the current session's ratings
+		 * @param int $productId The product ID
 		 * @param int|null $category Defaults to configured default
 		 * @return float|null Predicted rating in [0.0, 1.0], or null
 		 */
@@ -448,7 +448,7 @@
 		 * Predict ratings for all unrated items for an anonymous visitor using
 		 * slope one, returned as [['product_id' => int, 'rating' => float], ...]
 		 * sorted by predicted rating descending.
-		 * @param VisitorContext $visitor
+		 * @param VisitorContext $visitor The visitor context holding the current session's ratings
 		 * @param array<int> $filter When non-empty, only return product IDs in this set
 		 * @param int $limit Maximum number of results (0 = unlimited)
 		 * @param int|null $category Defaults to configured default
@@ -487,7 +487,7 @@
 		
 		/**
 		 * Clamp a predicted rating to the valid [0.0, 1.0] range.
-		 * @param float $value
+		 * @param float $value The raw predicted rating to clamp into the valid range
 		 * @return float
 		 */
 		private function clampRating(float $value): float {
@@ -497,8 +497,8 @@
 		/**
 		 * Extract a column from rows, optionally filtering by a whitelist of IDs.
 		 * @param array<int, mixed> $rows
-		 * @param string $column
-		 * @param array<int> $filter
+		 * @param string $column Name of the result column holding the product ID
+		 * @param array<int> $filter When non-empty, only return product IDs in this set
 		 * @return array<int, int>
 		 */
 		private function filterAndExtract(array $rows, string $column, array $filter): array {

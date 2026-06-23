@@ -26,8 +26,8 @@
 		
 		/**
 		 * LinkUpdater constructor
-		 * @param Connection $connection
-		 * @param RecommendationConfig $config
+		 * @param Connection $connection The CakePHP database connection
+		 * @param RecommendationConfig $config The recommendation configuration
 		 */
 		public function __construct(Connection $connection, RecommendationConfig $config) {
 			$this->config = $config;

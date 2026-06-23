@@ -24,9 +24,9 @@
 		
 		/**
 		 * UserSimilarity constructor
-		 * @param Connection $connection
-		 * @param RecommendationConfig $config
-		 * @param RecommendationEngine $engine
+		 * @param Connection $connection The CakePHP database connection
+		 * @param RecommendationConfig $config The recommendation configuration
+		 * @param RecommendationEngine $engine The recommendation engine used for rating lookups
 		 */
 		public function __construct(Connection $connection, RecommendationConfig $config, RecommendationEngine $engine) {
 			$this->engine = $engine;
@@ -38,8 +38,8 @@
 		 * Return a similarity score in [0, 100] between two members.
 		 * 0 means no overlap or completely different taste; 100 means identical.
 		 *
-		 * @param int $memberId1
-		 * @param int $memberId2
+		 * @param int $memberId1 The first member ID
+		 * @param int $memberId2 The second member, compared against the first
 		 * @param int|null $category Defaults to configured default
 		 */
 		public function memberSimilarity(int $memberId1, int $memberId2, ?int $category = null): int {
@@ -85,7 +85,7 @@
 		 * This performs a similarity calculation for every candidate neighbour —
 		 * for large member sets you should pre-compute and cache neighbour lists.
 		 *
-		 * @param int $memberId
+		 * @param int $memberId The member ID
 		 * @param int $minSimilarity Minimum score to include (0–100)
 		 * @param int $limit Maximum number of neighbours (0 = unlimited)
 		 * @param int|null $category Defaults to configured default
@@ -134,8 +134,7 @@
 		 * Return recommended items for a member based on what similar members
 		 * have liked, weighted by similarity score.
 		 * Only returns items the member has not already rated.
-		 *
-		 * @param int $memberId
+		 * @param int $memberId The member ID
 		 * @param int $minSimilarity Minimum neighbour similarity to consider
 		 * @param array<int> $filter When non-empty, only return product IDs in this set
 		 * @param int $limit Maximum number of results (0 = unlimited)
