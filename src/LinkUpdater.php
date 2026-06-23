@@ -104,6 +104,20 @@
 		 * @return void
 		 */
 		private function incrementLinks(int $memberId, int $productId, int $category, float $threshold): void {
+			$this->incrementExistingLinks($memberId, $productId, $category, $threshold);
+			$this->insertMissingLinks($memberId, $productId, $category, $threshold);
+		}
+		
+		/**
+		 * Increment the co-occurrence count of every existing link row that pairs
+		 * the rated product with another product this member already likes.
+		 * @param int $memberId The member whose rating changed
+		 * @param int $productId The product being rated
+		 * @param int $category The category
+		 * @param float $threshold The minimum rating to count as "liked"
+		 * @return void
+		 */
+		private function incrementExistingLinks(int $memberId, int $productId, int $category, float $threshold): void {
 			// Increment co-occurrence counts for all products this member already likes
 			$this->connection->execute('
 					UPDATE `vogoo_links` vl
@@ -126,7 +140,18 @@
 				'product_id3' => $productId,
 				'category2'   => $category
 			]);
-			
+		}
+		
+		/**
+		 * Insert link rows for liked pairs that do not yet exist, in both
+		 * (item_id1, item_id2) orderings.
+		 * @param int $memberId The member whose rating changed
+		 * @param int $productId The product being rated
+		 * @param int $category The category
+		 * @param float $threshold The minimum rating to count as "liked"
+		 * @return void
+		 */
+		private function insertMissingLinks(int $memberId, int $productId, int $category, float $threshold): void {
 			// Insert link rows that do not yet exist
 			$this->connection->execute('
 					INSERT INTO `vogoo_links` (`item_id1`, `item_id2`, `category`, `cnt`, `diff_slope`)
@@ -220,6 +245,20 @@
 		 * @return void
 		 */
 		private function addSlope(int $memberId, int $productId, int $category, float $rating): void {
+			$this->addSlopeAsItem1($memberId, $productId, $category, $rating);
+			$this->addSlopeAsItem2($memberId, $productId, $category, $rating);
+			$this->insertMissingSlopePairs($memberId, $productId, $category, $rating);
+		}
+		
+		/**
+		 * Update existing link rows where the rated product is item_id1.
+		 * @param int $memberId The member whose rating was added
+		 * @param int $productId The product being rated
+		 * @param int $category The category
+		 * @param float $rating The new rating value
+		 * @return void
+		 */
+		private function addSlopeAsItem1(int $memberId, int $productId, int $category, float $rating): void {
 			// Update existing rows where product_id is item_id1
 			$this->connection->execute('
 				UPDATE `vogoo_links` vl
@@ -240,7 +279,17 @@
 				'product_id2' => $productId,
 				'category2'   => $category
 			]);
-			
+		}
+		
+		/**
+		 * Update existing link rows where the rated product is item_id2.
+		 * @param int $memberId The member whose rating was added
+		 * @param int $productId The product being rated
+		 * @param int $category The category
+		 * @param float $rating The new rating value
+		 * @return void
+		 */
+		private function addSlopeAsItem2(int $memberId, int $productId, int $category, float $rating): void {
 			// Update existing rows where product_id is item_id2
 			$this->connection->execute('
 				UPDATE `vogoo_links` vl
@@ -261,7 +310,17 @@
 				'product_id2' => $productId,
 				'category2'   => $category
 			]);
-			
+		}
+		
+		/**
+		 * Insert link rows for pairs that do not yet exist, in both orderings.
+		 * @param int $memberId The member whose rating was added
+		 * @param int $productId The product being rated
+		 * @param int $category The category
+		 * @param float $rating The new rating value
+		 * @return void
+		 */
+		private function insertMissingSlopePairs(int $memberId, int $productId, int $category, float $rating): void {
 			// Insert missing link rows
 			$this->connection->execute('
 				INSERT INTO `vogoo_links` (`item_id1`, `item_id2`, `category`, `cnt`, `diff_slope`)

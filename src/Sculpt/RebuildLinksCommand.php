@@ -36,7 +36,7 @@
   --category=<id>   Only rebuild for the given category. Rebuilds all categories if omitted.
 
 <bold>Description:</bold>
-  Truncates vogoo_links for the target category (or all categories) and
+  Clears vogoo_links for the target category (or all categories) and
   recomputes it from vogoo_ratings in a single pass per member.
 
   Run this after bulk-importing ratings, or to recover from an inconsistent
@@ -104,8 +104,35 @@ HELP;
 			$processed = 0;
 			
 			foreach ($members as $memberRow) {
-				$memberId = (int)$memberRow['member_id'];
+				$this->rebuildMemberPairs($connection, $config, (int)$memberRow['member_id'], $category, $threshold);
 				
+				$processed++;
+				
+				// Progress every 100 members
+				if ($processed % 100 === 0 || $processed === $total) {
+					$this->output->writeLn("  {$processed}/{$total} members processed");
+				}
+			}
+			
+			$linkCount = $connection->execute(
+				'SELECT COUNT(*) AS cnt FROM vogoo_links WHERE category = :category',
+				['category' => $category],
+			)->fetchAssoc()['cnt'];
+				
+			$this->output->success("Category {$category}: rebuilt {$linkCount} link pairs from {$total} members.");
+		}
+		
+		/**
+		 * Recompute and upsert all (item1, item2) link pairs for a single member's
+		 * genuine ratings in the given category.
+		 * @param \Cake\Database\Connection $connection
+		 * @param RecommendationConfig $config
+		 * @param int $memberId
+		 * @param int $category
+		 * @param float $threshold Minimum rating to count as "liked" for co-occurrence
+		 * @return void
+		 */
+		private function rebuildMemberPairs(\Cake\Database\Connection $connection, RecommendationConfig $config, int $memberId, int $category, float $threshold): void {
 				// Fetch all genuine ratings for this member in this category
 				$ratings = $connection->execute(
 					'SELECT product_id, rating FROM vogoo_ratings WHERE member_id = :member_id AND category = :category AND rating >= 0.0',
@@ -134,26 +161,13 @@ HELP;
 						if ($config->isDirectSlope()) {
 							// item_id1=A, item_id2=B: diff = ratingB - ratingA
 							$this->upsertLink($connection, (int)$a['product_id'], (int)$b['product_id'], $category, 1, $ratingB - $ratingA);
+							
 							// item_id1=B, item_id2=A: diff = ratingA - ratingB
 							$this->upsertLink($connection, (int)$b['product_id'], (int)$a['product_id'], $category, 1, $ratingA - $ratingB);
 						}
 					}
 				}
 				
-				$processed++;
-				
-				// Progress every 100 members
-				if ($processed % 100 === 0 || $processed === $total) {
-					$this->output->writeLn("  {$processed}/{$total} members processed");
-				}
-			}
-			
-			$linkCount = $connection->execute(
-				'SELECT COUNT(*) AS cnt FROM vogoo_links WHERE category = :category',
-				['category' => $category],
-			)->fetchAssoc()['cnt'];
-			
-			$this->output->success("Category {$category}: rebuilt {$linkCount} link pairs from {$total} members.");
 		}
 		
 		/**

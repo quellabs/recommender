@@ -177,9 +177,11 @@
 			$this->connection->execute('
 				DELETE
 				FROM `vogoo_ratings`
-				WHERE `member_id` = :member_id
+				WHERE `member_id` = :member_id AND
+				      `category` = :category
 			', [
-				'member_id' => $memberId
+				'member_id' => $memberId,
+				'category'  => $cat
 			]);
 		}
 		
@@ -352,13 +354,12 @@
 				$sql .= ' AND `rating` >= 0.0';
 			}
 			
-			$stmt = $this->connection->execute($sql, $params);
+			$row = $this->connection->execute($sql, $params)->fetchAssoc();
 			
-			if ($stmt->rowCount() !== 1) {
+			if (empty($row)) {
 				return [];
 			}
 			
-			$row = $stmt->fetchAssoc();
 			return ['rating' => (float)$row['rating'], 'ts' => $row['ts']];
 		}
 		
@@ -378,64 +379,19 @@
 				return false;
 			}
 			
-			// Check whether a rating already exists
-			$stmt = $this->connection->execute('
-				SELECT `rating`
-				FROM `vogoo_ratings`
-				WHERE `member_id` = :member_id AND
-				      `product_id` = :product_id AND
-				      `category` = :category
-			', [
-				'member_id'  => $memberId,
-				'product_id' => $productId,
-				'category'   => $cat
-			]);
-			
-			if ($stmt->rowCount() === 1) {
-				$previous = (float)$stmt->fetchAssoc()['rating'];
+			// Write the rating together with its incremental link/slope updates in a
+			// single transaction so vogoo_links can never end up inconsistent with
+			// vogoo_ratings if one of the statements fails.
+			return $this->connection->transactional(function () use ($memberId, $productId, $cat, $rating): bool {
+				$previous = $this->fetchExistingRating($memberId, $productId, $cat);
 				
-				if ($this->config->isDirectLinks()) {
-					$this->linkUpdater->updateLinks($memberId, $productId, $cat, $rating, $previous);
-				}
+				// -1.0 sentinel marks "no previous rating" for the link/slope updates
+				$this->triggerIncrementalUpdates($memberId, $productId, $cat, $rating, $previous ?? -1.0);
 				
-				if ($this->config->isDirectSlope()) {
-					$this->linkUpdater->updateSlope($memberId, $productId, $cat, $rating, $previous);
-				}
-				
-				return $this->connection->execute('
-					UPDATE `vogoo_ratings`
-					SET
-						`rating` = :rating,
-						`ts` = NOW()
-					WHERE `member_id` = :member_id AND
-					      `product_id` = :product_id AND
-					      `category` = :category
-				', [
-					'rating'     => $rating,
-					'member_id'  => $memberId,
-					'product_id' => $productId,
-					'category'   => $cat
-				])->rowCount() === 1;
-			}
-			
-			// No existing rating: insert
-			if ($this->config->isDirectLinks()) {
-				$this->linkUpdater->updateLinks($memberId, $productId, $cat, $rating, -1.0);
-			}
-			
-			if ($this->config->isDirectSlope()) {
-				$this->linkUpdater->updateSlope($memberId, $productId, $cat, $rating, -1.0);
-			}
-			
-			return $this->connection->execute('
-				INSERT INTO `vogoo_ratings` (`member_id`, `product_id`, `category`, `rating`, `ts`)
-				VALUES (:member_id, :product_id, :category, :rating, NOW())
-			', [
-				'member_id'  => $memberId,
-				'product_id' => $productId,
-				'category'   => $cat,
-				'rating'     => $rating
-			])->rowCount() === 1;
+				return $previous !== null
+					? $this->updateRatingRow($memberId, $productId, $cat, $rating)
+					: $this->insertRatingRow($memberId, $productId, $cat, $rating);
+			});
 		}
 		
 		/**
@@ -490,9 +446,19 @@
 		public function deleteRating(int $memberId, int $productId, ?int $category = null): void {
 			$cat = $this->config->resolveCategory($category);
 			
-			if ($this->config->isDirectLinks() || $this->config->isDirectSlope()) {
-				$stmt = $this->connection->execute('
-					SELECT `rating`
+			// Remove the rating together with its incremental link/slope cleanup in a
+			// single transaction to keep vogoo_links consistent with vogoo_ratings.
+			$this->connection->transactional(function () use ($memberId, $productId, $cat): void {
+				if ($this->config->isDirectLinks() || $this->config->isDirectSlope()) {
+					$previous = $this->fetchExistingRating($memberId, $productId, $cat);
+					
+					if ($previous !== null) {
+						$this->triggerIncrementalUpdates($memberId, $productId, $cat, -1.0, $previous);
+					}
+				}
+				
+				$this->connection->execute('
+					DELETE
 					FROM `vogoo_ratings`
 					WHERE `member_id` = :member_id AND
 					      `product_id` = :product_id AND
@@ -502,30 +468,100 @@
 					'product_id' => $productId,
 					'category'   => $cat
 				]);
-				
-				if ($stmt->rowCount() === 1) {
-					$previous = (float)$stmt->fetchAssoc()['rating'];
-					
-					if ($this->config->isDirectLinks()) {
-						$this->linkUpdater->updateLinks($memberId, $productId, $cat, -1.0, $previous);
-					}
-					
-					if ($this->config->isDirectSlope()) {
-						$this->linkUpdater->updateSlope($memberId, $productId, $cat, -1.0, $previous);
-					}
-				}
+			});
+		}
+		
+		// -------------------------------------------------------------------------
+		// Internal helpers
+		// -------------------------------------------------------------------------
+		
+		/**
+		 * Return the member's current rating for a product, or null when no rating
+		 * row exists. Drives the INSERT/UPDATE choice and the incremental updates.
+		 * @param int $memberId
+		 * @param int $productId
+		 * @param int $category Already-resolved category
+		 * @return float|null
+		 */
+		private function fetchExistingRating(int $memberId, int $productId, int $category): ?float {
+			$row = $this->connection->execute('
+					SELECT `rating`
+					FROM `vogoo_ratings`
+					WHERE `member_id` = :member_id AND
+					      `product_id` = :product_id AND
+					      `category` = :category
+				', [
+				'member_id'  => $memberId,
+				'product_id' => $productId,
+				'category'   => $category
+			])->fetchAssoc();
+			
+			return !empty($row) ? (float)$row['rating'] : null;
+		}
+		
+		/**
+		 * Fire the incremental link and slope updates that are enabled in config.
+		 * A -1.0 sentinel in $rating or $previous means the rating is being created
+		 * or deleted respectively.
+		 * @param int $memberId
+		 * @param int $productId
+		 * @param int $category Already-resolved category
+		 * @param float $rating
+		 * @param float $previous
+		 * @return void
+		 */
+		private function triggerIncrementalUpdates(int $memberId, int $productId, int $category, float $rating, float $previous): void {
+			if ($this->config->isDirectLinks()) {
+				$this->linkUpdater->updateLinks($memberId, $productId, $category, $rating, $previous);
 			}
 			
-			$this->connection->execute('
-				DELETE
-				FROM `vogoo_ratings`
+			if ($this->config->isDirectSlope()) {
+				$this->linkUpdater->updateSlope($memberId, $productId, $category, $rating, $previous);
+			}
+		}
+		
+		/**
+		 * Update an existing rating row, refreshing its timestamp.
+		 * @param int $memberId
+		 * @param int $productId
+		 * @param int $category Already-resolved category
+		 * @param float $rating
+		 * @return bool True when exactly one row was updated
+		 */
+		private function updateRatingRow(int $memberId, int $productId, int $category, float $rating): bool {
+			return $this->connection->execute('
+				UPDATE `vogoo_ratings`
+				SET
+					`rating` = :rating,
+					`ts` = NOW()
 				WHERE `member_id` = :member_id AND
 				      `product_id` = :product_id AND
 				      `category` = :category
 			', [
+				'rating'     => $rating,
 				'member_id'  => $memberId,
 				'product_id' => $productId,
-				'category'   => $cat
-			]);
+				'category'   => $category
+			])->rowCount() === 1;
+		}
+		
+		/**
+		 * Insert a new rating row.
+		 * @param int $memberId
+		 * @param int $productId
+		 * @param int $category Already-resolved category
+		 * @param float $rating
+		 * @return bool True when exactly one row was inserted
+		 */
+		private function insertRatingRow(int $memberId, int $productId, int $category, float $rating): bool {
+			return $this->connection->execute('
+				INSERT INTO `vogoo_ratings` (`member_id`, `product_id`, `category`, `rating`, `ts`)
+				VALUES (:member_id, :product_id, :category, :rating, NOW())
+			', [
+				'member_id'  => $memberId,
+				'product_id' => $productId,
+				'category'   => $category,
+				'rating'     => $rating
+			])->rowCount() === 1;
 		}
 	}

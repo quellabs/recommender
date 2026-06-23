@@ -75,33 +75,7 @@
 				return 0;
 			}
 			
-			$cost = $this->config->getCost();
-			$spread = (float)$row['s'] * $cost * $cost * 20.0;
-			
-			$tempFactor = $spread / $nrCommonRatings;
-			
-			if ($tempFactor > 100) {
-				return 0;
-			}
-			
-			$thresholdNr = $this->config->getThresholdNrCommonRatings();
-			$thresholdMult = $this->config->getThresholdMult();
-			
-			// Enough common ratings: return direct score
-			if ($nrCommonRatings > $thresholdNr || ($nrCommonRatings * $thresholdMult) >= $nrRatings1) {
-				return 100 - (int)$tempFactor;
-			}
-			
-			// Fewer common ratings: apply a confidence penalty
-			if ($nrRatings1 < ($thresholdNr * $thresholdMult)) {
-				$tempFactor2 = ($nrCommonRatings * $thresholdMult) / $nrRatings1;
-			} else {
-				$tempFactor2 = ($nrCommonRatings * $thresholdMult) / ($thresholdNr * $thresholdMult);
-			}
-			
-			$tempFactor2 *= $tempFactor2;
-			
-			return (int)((100.0 - $tempFactor) * (0.1 + 0.9 * $tempFactor2));
+			return $this->scoreSimilarity($nrCommonRatings, (float)$row['s'], $nrRatings1);
 		}
 		
 		/**
@@ -172,7 +146,6 @@
 			$cat = $this->config->resolveCategory($category);
 			$minSimilarity = max(0, min(100, $minSimilarity));
 			$limit = max(0, $limit);
-			$threshold = $this->config->getThresholdRating();
 			
 			$neighbours = $this->getNeighbours($memberId, $minSimilarity, 0, $cat);
 			
@@ -180,6 +153,70 @@
 				return [];
 			}
 			
+			$scores = $this->computeNeighbourScores($memberId, $neighbours, $filter, $cat);
+			
+			if (empty($scores)) {
+				return [];
+			}
+			
+			arsort($scores);
+			
+			$result = array_keys($scores);
+			return $limit > 0 ? array_slice($result, 0, $limit) : $result;
+		}
+
+		/**
+		 * Convert the raw sum of squared rating differences into a 0–100 similarity
+		 * score, applying the Vogoo confidence penalty when the number of common
+		 * ratings is small relative to the member's total ratings.
+		 * @param int $nrCommonRatings Number of products both members rated
+		 * @param float $sumSquaredDiff Sum of squared rating differences over those products
+		 * @param int $nrRatings1 Total genuine ratings of the first member
+		 * @return int Similarity score in [0, 100]
+		 */
+		private function scoreSimilarity(int $nrCommonRatings, float $sumSquaredDiff, int $nrRatings1): int {
+			$cost = $this->config->getCost();
+			$spread = $sumSquaredDiff * $cost * $cost * 20.0;
+			
+			$tempFactor = $spread / $nrCommonRatings;
+			
+			if ($tempFactor > 100) {
+				return 0;
+			}
+			
+			$thresholdNr = $this->config->getThresholdNrCommonRatings();
+			$thresholdMult = $this->config->getThresholdMult();
+			
+			// Enough common ratings: return direct score
+			if ($nrCommonRatings > $thresholdNr || ($nrCommonRatings * $thresholdMult) >= $nrRatings1) {
+				return 100 - (int)$tempFactor;
+			}
+			
+			// Fewer common ratings: apply a confidence penalty
+			if ($nrRatings1 < ($thresholdNr * $thresholdMult)) {
+				$tempFactor2 = ($nrCommonRatings * $thresholdMult) / $nrRatings1;
+			} else {
+				$tempFactor2 = ($nrCommonRatings * $thresholdMult) / ($thresholdNr * $thresholdMult);
+			}
+			
+			$tempFactor2 *= $tempFactor2;
+			
+			return (int)((100.0 - $tempFactor) * (0.1 + 0.9 * $tempFactor2));
+		}
+		
+		/**
+		 * Compute similarity-weighted recommendation scores for every product liked by
+		 * the member's neighbours that the member has not rated. Each candidate's score
+		 * is the similarity-weighted average of the neighbours' ratings for it. Runs one
+		 * query per neighbour.
+		 * @param int $memberId The member receiving recommendations
+		 * @param array<int, array{member_id: int, similarity: int}> $neighbours
+		 * @param array<int> $filter When non-empty, only score product IDs in this set
+		 * @param int $category Already-resolved category
+		 * @return array<int, float> Map of candidate product_id => weighted score
+		 */
+		private function computeNeighbourScores(int $memberId, array $neighbours, array $filter, int $category): array {
+			$threshold = $this->config->getThresholdRating();
 			$scores = [];
 			$weights = [];
 			
@@ -200,10 +237,10 @@
 					      )
 				', [
 					'member_id'        => $neighbourId,
-					'category'         => $cat,
+					'category'         => $category,
 					'threshold'        => $threshold,
 					'target_member_id' => $memberId,
-					'category2'        => $cat
+					'category2'        => $category
 				])->fetchAll('assoc');
 				
 				foreach ($rows as $row) {
@@ -218,20 +255,11 @@
 				}
 			}
 			
-			if (empty($scores)) {
-				return [];
-			}
-			
 			// Normalise by total weight
-			$normalised = [];
-			
 			foreach ($scores as $id => $score) {
-				$normalised[$id] = $score / $weights[$id];
+				$scores[$id] = $score / $weights[$id];
 			}
 			
-			arsort($normalised);
-			
-			$result = array_keys($normalised);
-			return $limit > 0 ? array_slice($result, 0, $limit) : $result;
+			return $scores;
 		}
 	}

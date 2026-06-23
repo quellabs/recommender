@@ -4,14 +4,15 @@
 	
 	use Quellabs\Sculpt\ConfigurationManager;
 	use Quellabs\Sculpt\Contracts\CommandBase;
+	use Cake\Database\Connection;
 	
 	/**
 	 * Creates the vogoo_ratings and vogoo_links tables required by the
 	 * recommender engine.
 	 *
 	 * Usage:
-	 *   sculpt recommender:init
-	 *   sculpt recommender:init --force   (drop and recreate existing tables)
+	 *   sculpt recommender:init-db
+	 *   sculpt recommender:init-db --force   (drop and recreate existing tables)
 	 */
 	class InitCommand extends CommandBase {
 		
@@ -83,6 +84,18 @@ HELP;
 				}
 			}
 			
+			$this->createRatingsTable($connection);
+			$this->createLinksTable($connection);
+			
+			return 0;
+		}
+		
+		/**
+		 * Create the vogoo_ratings table.
+		 * @param Connection $connection
+		 * @return void
+		 */
+		private function createRatingsTable(Connection $connection): void {
 			// Create vogoo_ratings
 			$connection->execute(
 				'CREATE TABLE `vogoo_ratings` (
@@ -98,7 +111,14 @@ HELP;
 			);
 			
 			$this->output->success("Created table 'vogoo_ratings'.");
-			
+		}
+		
+		/**
+		 * Create the vogoo_links table.
+		 * @param Connection $connection
+		 * @return void
+		 */
+		private function createLinksTable(Connection $connection): void {
 			// Create vogoo_links
 			$connection->execute(
 				'CREATE TABLE `vogoo_links` (
@@ -113,7 +133,5 @@ HELP;
 			);
 			
 			$this->output->success("Created table 'vogoo_links'.");
-			
-			return 0;
 		}
 	}

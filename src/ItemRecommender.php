@@ -177,52 +177,13 @@
 		 */
 		public function visitorGetRecommendedItems(VisitorContext $visitor, array $filter = [], int $limit = 0, ?int $category = null): array {
 			$cat = $this->config->resolveCategory($category);
-			$threshold = $this->config->getThresholdRating();
 			$ratings = $visitor->getRatings($cat);
 			
 			if (empty($ratings)) {
 				return [];
 			}
 			
-			$ratedIds = array_column($ratings, 'product_id');
-			$scores = [];
-			
-			foreach ($ratings as $entry) {
-				if ($entry['rating'] === $this->config->getNotInterested()) {
-					continue;
-				}
-				
-				$rows = $this->connection->execute('
-					SELECT
-						`item_id2`,
-						`cnt`
-					FROM `vogoo_links`
-					WHERE `category` = :category AND
-					      `item_id1` = :product_id
-				', [
-					'category'   => $cat,
-					'product_id' => $entry['product_id']
-				])->fetchAll('assoc');
-				
-				foreach ($rows as $row) {
-					if (!is_array($row) || !isset($row['item_id2'], $row['cnt']) || !is_scalar($row['item_id2'])) {
-						continue;
-					}
-					
-					$id = (int)$row['item_id2'];
-					
-					if ((!empty($filter) && !in_array($id, $filter, true)) || in_array($id, $ratedIds, true)) {
-						continue;
-					}
-					
-					if ((int)$row['cnt'] === 0) {
-						continue;
-					}
-					
-					$scores[$id] = ($scores[$id] ?? 0.0) + ($entry['rating'] - $threshold) * (int)$row['cnt'];
-				}
-			}
-			
+			$scores = $this->scoreVisitorCandidates($ratings, $filter, $cat);
 			$scores = array_filter($scores, fn($s) => $s > 0);
 			arsort($scores);
 			
@@ -440,15 +401,7 @@
 		 */
 		public function visitorPredict(VisitorContext $visitor, int $productId, ?int $category = null): ?float {
 			$cat = $this->config->resolveCategory($category);
-			$ratings = $visitor->getRatings($cat);
-			
-			$products = [];
-			
-			foreach ($ratings as $entry) {
-				if ($entry['rating'] >= 0.0) {
-					$products[$entry['product_id']] = $entry['rating'];
-				}
-			}
+			$products = $this->collectGenuineRatings($visitor->getRatings($cat));
 			
 			if (empty($products)) {
 				return null;
@@ -503,62 +456,14 @@
 		 */
 		public function visitorPredictAll(VisitorContext $visitor, array $filter = [], int $limit = 0, ?int $category = null): array {
 			$cat = $this->config->resolveCategory($category);
-			$ratings = $visitor->getRatings($cat);
-			
-			$products = [];
-			$ratedIds = [];
-			
-			foreach ($ratings as $entry) {
-				if ($entry['rating'] >= 0.0) {
-					$products[$entry['product_id']] = $entry['rating'];
-					$ratedIds[] = $entry['product_id'];
-				}
-			}
+			$products = $this->collectGenuineRatings($visitor->getRatings($cat));
 			
 			if (empty($products)) {
 				return [];
 			}
 			
-			// Accumulate cnter and diff across all rated products
-			$accumulated = [];
-			
-			foreach ($products as $ratedProductId => $ratedRating) {
-				$rows = $this->connection->execute('
-					SELECT
-						`item_id2`,
-						SUM(`cnt`) AS cnter,
-						SUM(:rating * `cnt` + `diff_slope`) AS diff
-					FROM `vogoo_links`
-					WHERE `item_id1` = :product_id AND
-					      `cnt` > 0 AND
-					      `category` = :category
-					GROUP BY `item_id2`
-				', [
-					'rating'     => $ratedRating,
-					'product_id' => $ratedProductId,
-					'category'   => $cat
-				])->fetchAll('assoc');
-				
-				foreach ($rows as $row) {
-					if (!is_array($row) || !isset($row['item_id2'], $row['cnter'], $row['diff']) || !is_scalar($row['item_id2'])) {
-						continue;
-					}
-					
-					$id = (int)$row['item_id2'];
-					
-					if (!empty($filter) && !in_array($id, $filter, true)) {
-						continue;
-					}
-					
-					if (isset($accumulated[$id])) {
-						$accumulated[$id][0] += (float)$row['cnter'];
-						$accumulated[$id][1] += (float)$row['diff'];
-					} else {
-						$accumulated[$id] = [(float)$row['cnter'], (float)$row['diff']];
-					}
-				}
-			}
-			
+			$accumulated = $this->accumulateSlopePredictions($products, $filter, $cat);
+			$ratedIds = array_keys($products);
 			$result = [];
 			
 			foreach ($accumulated as $id => [$cnter, $diff]) {
@@ -612,5 +517,127 @@
 			}
 			
 			return $result;
+		}
+		/**
+		 * Build a [product_id => rating] map of genuine ratings (>= 0.0, excluding
+		 * "not interested") from a visitor's rating list, for slope one prediction input.
+		 * @param array<int, array{product_id: int, rating: float, category: int}> $ratings
+		 * @return array<int, float>
+		 */
+		private function collectGenuineRatings(array $ratings): array {
+			$products = [];
+			
+			foreach ($ratings as $entry) {
+				if ($entry['rating'] >= 0.0) {
+					$products[$entry['product_id']] = $entry['rating'];
+				}
+			}
+			
+			return $products;
+		}
+		
+		/**
+		 * Accumulate weighted co-occurrence scores for every candidate item linked to
+		 * the visitor's rated products, skipping "not interested" entries, zero-count
+		 * links, and items the visitor has already rated.
+		 * @param array<int, array{product_id: int, rating: float, category: int}> $ratings
+		 * @param array<int> $filter When non-empty, only score product IDs in this set
+		 * @param int $category Already-resolved category
+		 * @return array<int, float> Map of candidate product_id => raw score
+		 */
+		private function scoreVisitorCandidates(array $ratings, array $filter, int $category): array {
+			$threshold = $this->config->getThresholdRating();
+			$ratedIds = array_column($ratings, 'product_id');
+			$scores = [];
+			
+			foreach ($ratings as $entry) {
+				if ($entry['rating'] === $this->config->getNotInterested()) {
+					continue;
+				}
+				
+				$rows = $this->connection->execute('
+					SELECT
+						`item_id2`,
+						`cnt`
+					FROM `vogoo_links`
+					WHERE `category` = :category AND
+					      `item_id1` = :product_id
+				', [
+					'category'   => $category,
+					'product_id' => $entry['product_id']
+				])->fetchAll('assoc');
+				
+				foreach ($rows as $row) {
+					if (!is_array($row) || !isset($row['item_id2'], $row['cnt']) || !is_scalar($row['item_id2'])) {
+						continue;
+					}
+					
+					$id = (int)$row['item_id2'];
+					
+					if ((!empty($filter) && !in_array($id, $filter, true)) || in_array($id, $ratedIds, true)) {
+						continue;
+					}
+					
+					if ((int)$row['cnt'] === 0) {
+						continue;
+					}
+					
+					$scores[$id] = ($scores[$id] ?? 0.0) + ($entry['rating'] - $threshold) * (int)$row['cnt'];
+				}
+			}
+			
+			return $scores;
+		}
+		
+		/**
+		 * Accumulate slope one (cnter, diff) totals per candidate item across all of
+		 * the visitor's rated products. Runs one query per rated product.
+		 * @param array<int, float> $products Map of rated product_id => rating
+		 * @param array<int> $filter When non-empty, only accumulate product IDs in this set
+		 * @param int $category Already-resolved category
+		 * @return array<int, array{0: float, 1: float}> Map of candidate id => [cnter, diff]
+		 */
+		private function accumulateSlopePredictions(array $products, array $filter, int $category): array {
+			// Accumulate cnter and diff across all rated products
+			$accumulated = [];
+			
+			foreach ($products as $ratedProductId => $ratedRating) {
+				$rows = $this->connection->execute('
+					SELECT
+						`item_id2`,
+						SUM(`cnt`) AS cnter,
+						SUM(:rating * `cnt` + `diff_slope`) AS diff
+					FROM `vogoo_links`
+					WHERE `item_id1` = :product_id AND
+					      `cnt` > 0 AND
+					      `category` = :category
+					GROUP BY `item_id2`
+				', [
+					'rating'     => $ratedRating,
+					'product_id' => $ratedProductId,
+					'category'   => $category
+				])->fetchAll('assoc');
+				
+				foreach ($rows as $row) {
+					if (!is_array($row) || !isset($row['item_id2'], $row['cnter'], $row['diff']) || !is_scalar($row['item_id2'])) {
+						continue;
+					}
+					
+					$id = (int)$row['item_id2'];
+					
+					if (!empty($filter) && !in_array($id, $filter, true)) {
+						continue;
+					}
+					
+					if (isset($accumulated[$id])) {
+						$accumulated[$id][0] += (float)$row['cnter'];
+						$accumulated[$id][1] += (float)$row['diff'];
+					} else {
+						$accumulated[$id] = [(float)$row['cnter'], (float)$row['diff']];
+					}
+				}
+			}
+			
+			return $accumulated;
 		}
 	}
