@@ -402,6 +402,7 @@
 		 * @param int $productId
 		 * @param bool $purchase True for a purchase, false for a click
 		 * @param int|null $category Defaults to configured default
+		 * @return bool
 		 */
 		public function automaticRating(int $memberId, int $productId, bool $purchase, ?int $category = null): bool {
 			$cat = $this->config->resolveCategory($category);
@@ -430,6 +431,7 @@
 		 * @param int $memberId
 		 * @param int $productId
 		 * @param int|null $category Defaults to configured default
+		 * @return bool
 		 */
 		public function setNotInterested(int $memberId, int $productId, ?int $category = null): bool {
 			return $this->setRating($memberId, $productId, $this->config->getNotInterested(), $category);
@@ -442,6 +444,7 @@
 		 * @param int $memberId
 		 * @param int $productId
 		 * @param int|null $category Defaults to configured default
+		 * @throws \Exception
 		 */
 		public function deleteRating(int $memberId, int $productId, ?int $category = null): void {
 			$cat = $this->config->resolveCategory($category);
@@ -485,12 +488,12 @@
 		 */
 		private function fetchExistingRating(int $memberId, int $productId, int $category): ?float {
 			$row = $this->connection->execute('
-					SELECT `rating`
-					FROM `vogoo_ratings`
-					WHERE `member_id` = :member_id AND
-					      `product_id` = :product_id AND
-					      `category` = :category
-				', [
+				SELECT `rating`
+				FROM `vogoo_ratings`
+				WHERE `member_id` = :member_id AND
+				      `product_id` = :product_id AND
+				      `category` = :category
+			', [
 				'member_id'  => $memberId,
 				'product_id' => $productId,
 				'category'   => $category
@@ -509,6 +512,7 @@
 		 * @param float $rating
 		 * @param float $previous
 		 * @return void
+		 * @throws \Exception
 		 */
 		private function triggerIncrementalUpdates(int $memberId, int $productId, int $category, float $rating, float $previous): void {
 			if ($this->config->isDirectLinks()) {
