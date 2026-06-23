@@ -19,6 +19,8 @@
 	 *
 	 * All methods throw on database failure. Wrap calls in try/catch if you need
 	 * to handle errors.
+	 *
+	 * @phpstan-import-type RatingList from VisitorContext
 	 */
 	readonly class ItemRecommender {
 		
@@ -518,10 +520,11 @@
 			
 			return $result;
 		}
+		
 		/**
 		 * Build a [product_id => rating] map of genuine ratings (>= 0.0, excluding
 		 * "not interested") from a visitor's rating list, for slope one prediction input.
-		 * @param array<int, array{product_id: int, rating: float, category: int}> $ratings
+		 * @param RatingList $ratings
 		 * @return array<int, float>
 		 */
 		private function collectGenuineRatings(array $ratings): array {
@@ -540,7 +543,7 @@
 		 * Accumulate weighted co-occurrence scores for every candidate item linked to
 		 * the visitor's rated products, skipping "not interested" entries, zero-count
 		 * links, and items the visitor has already rated.
-		 * @param array<int, array{product_id: int, rating: float, category: int}> $ratings
+		 * @param RatingList $ratings
 		 * @param array<int> $filter When non-empty, only score product IDs in this set
 		 * @param int $category Already-resolved category
 		 * @return array<int, float> Map of candidate product_id => raw score

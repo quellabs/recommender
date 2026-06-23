@@ -11,10 +11,13 @@
 	 * The caller is responsible for persisting and restoring this object across
 	 * requests (e.g. via session serialization). The recommender classes receive
 	 * it as a method argument rather than reading a global.
+	 *
+	 * @phpstan-type RatingEntry array{product_id: int, rating: float, category: int}
+	 * @phpstan-type RatingList array<int, RatingEntry>
 	 */
 	class VisitorContext {
 		
-		/** @var array<int, array{product_id: int, rating: float, category: int}> */
+		/** @var RatingList */
 		private array $ratings = [];
 		private readonly RecommendationConfig $config;
 		
@@ -80,7 +83,7 @@
 		/**
 		 * Return all ratings for the given category.
 		 * @param int|null $category Defaults to the configured default category
-		 * @return array<int, array{product_id: int, rating: float, category: int}>
+		 * @return RatingList
 		 */
 		public function getRatings(?int $category = null): array {
 			$cat = $this->config->resolveCategory($category);
