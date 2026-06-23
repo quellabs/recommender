@@ -18,8 +18,8 @@
 		
 		/**
 		 * Statistics constructor
-		 * @param Connection $connection
-		 * @param RecommendationConfig $config
+		 * @param Connection $connection The CakePHP database connection
+		 * @param RecommendationConfig $config The recommendation configuration
 		 */
 		public function __construct(Connection $connection, RecommendationConfig $config) {
 			$this->config = $config;
@@ -193,6 +193,7 @@
 		 * Return the number of item pairs in the vogoo_links table.
 		 * Useful for monitoring link table growth.
 		 * @param int|null $category Defaults to configured default
+		 * @return int Number of link rows in the category
 		 */
 		public function numLinks(?int $category = null): int {
 			$cat = $this->config->resolveCategory($category);

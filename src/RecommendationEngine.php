@@ -42,7 +42,7 @@
 		 * @param bool $realRatings When true, count genuine ratings (>= 0.0)
 		 * @param bool $notInterested When true, count "not interested" ratings instead
 		 * @param int|null $category Defaults to configured default
-		 * @return int
+		 * @return int Number of matching ratings
 		 */
 		public function memberNumRatings(int $memberId, bool $realRatings = true, bool $notInterested = false, ?int $category = null): int {
 			$cat = $this->config->resolveCategory($category);
@@ -78,6 +78,7 @@
 		 * Returns 0.0 when the member has no ratings.
 		 * @param int $memberId The member ID
 		 * @param int|null $category Defaults to configured default
+		 * @return float Average rating, or 0.0 when the member has none
 		 */
 		public function memberAverageRating(int $memberId, ?int $category = null): float {
 			$cat = $this->config->resolveCategory($category);
@@ -193,7 +194,7 @@
 		 * Return the number of genuine ratings a product has received.
 		 * @param int $productId The product ID
 		 * @param int|null $category Defaults to configured default
-		 * @return int
+		 * @return int Number of matching ratings
 		 */
 		public function productNumRatings(int $productId, ?int $category = null): int {
 			$cat = $this->config->resolveCategory($category);
@@ -218,7 +219,7 @@
 		 * ratings exist.
 		 * @param int $productId The product ID
 		 * @param int|null $category Defaults to configured default
-		 * @return float
+		 * @return float Average rating, or 0.0 when the product has none
 		 */
 		public function productAverageRating(int $productId, ?int $category = null): float {
 			$cat = $this->config->resolveCategory($category);
@@ -368,7 +369,7 @@
 		 * @param int $productId The product ID
 		 * @param float $rating Must be in [0.0, 1.0] or equal getNotInterested()
 		 * @param int|null $category Defaults to configured default
-		 * @throws \Exception
+		 * @return bool True when the rating was written
 		 */
 		public function setRating(int $memberId, int $productId, float $rating, ?int $category = null): bool {
 			$cat = $this->config->resolveCategory($category);

@@ -55,7 +55,7 @@
 		
 		/**
 		 * Register all recommender commands with the Sculpt application.
-		 * @param Application $application
+		 * @param Application $application The application the provider registers with
 		 * @return void
 		 */
 		public function register(Application $application): void {
@@ -115,8 +115,8 @@
 		
 		/**
 		 * Retrieve a float value from config, falling back to the provided default.
-		 * @param string $key
-		 * @param float $default
+		 * @param string $key Config key
+		 * @param float $default Fallback value when the key is missing or non-numeric
 		 * @return float
 		 */
 		private function getConfigValueAsFloat(string $key, float $default): float {
@@ -126,7 +126,7 @@
 		
 		/**
 		 * Resolve a short driver name to a fully qualified CakePHP driver class.
-		 * @param string $driver
+		 * @param string $driver The configured database driver name or alias
 		 * @return string
 		 */
 		private function resolveDriver(string $driver): string {

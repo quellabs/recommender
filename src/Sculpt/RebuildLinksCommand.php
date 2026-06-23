@@ -21,21 +21,21 @@
 	class RebuildLinksCommand extends CommandBase {
 		
 		/**
-		 * @return string
+		 * @return string The command signature (its invocable name)
 		 */
 		public function getSignature(): string {
 			return 'recommender:rebuild-links';
 		}
 		
 		/**
-		 * @return string
+		 * @return string One-line description of the command
 		 */
 		public function getDescription(): string {
 			return 'Rebuild the vogoo_links co-occurrence and slope one table from ratings data';
 		}
 		
 		/**
-		 * @return string
+		 * @return string Detailed help text
 		 */
 		public function getHelp(): string {
 			return <<<HELP
@@ -58,8 +58,9 @@ HELP;
 		}
 		
 		/**
-		 * @param ConfigurationManager $config
-		 * @return int
+		 * Rebuild vogoo_links for one or all categories from ratings data.
+		 * @param ConfigurationManager $config The Sculpt configuration manager (flags and arguments)
+		 * @return int Exit code: 0 on success
 		 */
 		public function execute(ConfigurationManager $config): int {
 			/** @var RecommenderProvider $provider */
@@ -99,9 +100,9 @@ HELP;
 		
 		/**
 		 * Rebuild vogoo_links for a single category.
-		 * @param Connection $connection
-		 * @param RecommendationConfig $config
-		 * @param int $category
+		 * @param Connection $connection The CakePHP database connection
+		 * @param RecommendationConfig $config The recommendation configuration
+		 * @param int $category Already-resolved category
 		 * @return void
 		 */
 		private function rebuildCategory(Connection $connection, RecommendationConfig $config, int $category): void {

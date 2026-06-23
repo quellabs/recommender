@@ -43,6 +43,7 @@
 		 * @param float $rating The new rating (-1.0 = being deleted)
 		 * @param float $previous The previous rating (-1.0 = did not exist)
 		 * @throws \Exception
+		 * @return void
 		 */
 		public function updateLinks(int $memberId, int $productId, int $category, float $rating, float $previous): void {
 			$threshold = $this->config->getThresholdRating();
@@ -71,6 +72,7 @@
 		 * @param float $rating The new rating (-1.0 = being deleted)
 		 * @param float $previous The previous rating (-1.0 = did not exist)
 		 * @throws \Exception
+		 * @return void
 		 */
 		public function updateSlope(int $memberId, int $productId, int $category, float $rating, float $previous): void {
 			// Both absent: nothing to do
@@ -372,7 +374,6 @@
 		/**
 		 * Remove slope one entries for a deleted rating — decrements cnt and
 		 * diff_slope, then prunes zero-count rows.
-		 *
 		 * @param int $memberId The member whose rating was deleted
 		 * @param int $productId The product that was rated
 		 * @param int $category The category
@@ -426,7 +427,6 @@
 		/**
 		 * Adjust slope one diff_slope values when an existing rating changes —
 		 * applies the delta without touching cnt.
-		 *
 		 * @param int $memberId The member whose rating changed
 		 * @param int $productId The product being rated
 		 * @param int $category The category

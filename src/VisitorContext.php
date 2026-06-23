@@ -20,7 +20,7 @@
 		
 		/**
 		 * VisitorContext constructor
-		 * @param RecommendationConfig $config
+		 * @param RecommendationConfig $config The recommendation configuration
 		 */
 		public function __construct(RecommendationConfig $config) {
 			$this->config = $config;
@@ -28,7 +28,7 @@
 		
 		/**
 		 * Record or update a rating for a product in the given category.
-		 * @param int $productId
+		 * @param int $productId The product ID
 		 * @param float $rating Use RecommendationConfig::getNotInterested() for "not interested"
 		 * @param int|null $category Defaults to the configured default category
 		 * @return void
@@ -52,8 +52,8 @@
 		
 		/**
 		 * Mark a product as "not interested" for the given category.
-		 * @param int $productId
-		 * @param int|null $category
+		 * @param int $productId The product ID
+		 * @param int|null $category Defaults to the configured default category
 		 * @return void
 		 */
 		public function setNotInterested(int $productId, ?int $category = null): void {
@@ -62,8 +62,8 @@
 		
 		/**
 		 * Remove a rating for a product in the given category.
-		 * @param int $productId
-		 * @param int|null $category
+		 * @param int $productId The product ID
+		 * @param int|null $category Defaults to the configured default category
 		 * @return void
 		 */
 		public function removeRating(int $productId, ?int $category = null): void {
@@ -79,7 +79,7 @@
 		
 		/**
 		 * Return all ratings for the given category.
-		 * @param int|null $category
+		 * @param int|null $category Defaults to the configured default category
 		 * @return array<int, array{product_id: int, rating: float, category: int}>
 		 */
 		public function getRatings(?int $category = null): array {
@@ -92,7 +92,7 @@
 		
 		/**
 		 * Return all rated product IDs for the given category.
-		 * @param int|null $category
+		 * @param int|null $category Defaults to the configured default category
 		 * @return array<int, int>
 		 */
 		public function getRatedProductIds(?int $category = null): array {
@@ -100,7 +100,7 @@
 		}
 		
 		/**
-		 * @param int|null $category
+		 * @param int|null $category Defaults to the configured default category
 		 * @return bool
 		 */
 		public function isEmpty(?int $category = null): bool {

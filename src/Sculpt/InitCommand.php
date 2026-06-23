@@ -16,14 +16,23 @@
 	 */
 	class InitCommand extends CommandBase {
 		
+		/**
+		 * @return string The command signature (its invocable name)
+		 */
 		public function getSignature(): string {
 			return 'recommender:init-db';
 		}
 		
+		/**
+		 * @return string One-line description of the command
+		 */
 		public function getDescription(): string {
 			return 'Create the vogoo_ratings and vogoo_links database tables';
 		}
 		
+		/**
+		 * @return string Detailed help text
+		 */
 		public function getHelp(): string {
 			return <<<HELP
 <bold>Usage:</bold>
@@ -42,6 +51,11 @@
 HELP;
 		}
 		
+		/**
+		 * Create the recommender database tables (vogoo_ratings, vogoo_links).
+		 * @param ConfigurationManager $config The Sculpt configuration manager (flags and arguments)
+		 * @return int Exit code: 0 on success, 1 on failure
+		 */
 		public function execute(ConfigurationManager $config): int {
 			/** @var RecommenderProvider $provider */
 			$provider   = $this->provider;

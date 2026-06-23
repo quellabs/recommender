@@ -15,14 +15,25 @@
 	 */
 	class PublishConfigCommand extends CommandBase {
 		
+		/**
+		 * @return string The command signature (its invocable name)
+		 */
 		public function getSignature(): string {
 			return 'recommender:init';
 		}
 		
+		/**
+		 * @return string One-line description of the command
+		 */
 		public function getDescription(): string {
 			return 'Publish the recommender configuration file to config/recommender.php';
 		}
 		
+		/**
+		 * Publish the recommender config stub into the project config directory.
+		 * @param ConfigurationManager $config The Sculpt configuration manager (flags and arguments)
+		 * @return int Exit code: 0 on success, 1 on failure
+		 */
 		public function execute(ConfigurationManager $config): int {
 			$source = realpath(__DIR__ . '/../../config/recommender.php');
 			
