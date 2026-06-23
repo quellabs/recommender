@@ -100,6 +100,7 @@
 		}
 		
 		/**
+		 * Whether the visitor has no ratings in the given category.
 		 * @param int|null $category Defaults to the configured default category
 		 * @return bool
 		 */

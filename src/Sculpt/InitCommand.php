@@ -17,6 +17,7 @@
 	class InitCommand extends CommandBase {
 		
 		/**
+		 * Return the command's invocable signature.
 		 * @return string The command signature (its invocable name)
 		 */
 		public function getSignature(): string {
@@ -24,6 +25,7 @@
 		}
 		
 		/**
+		 * Return the one-line command description shown in command listings.
 		 * @return string One-line description of the command
 		 */
 		public function getDescription(): string {
@@ -31,6 +33,7 @@
 		}
 		
 		/**
+		 * Return the detailed help text shown for this command.
 		 * @return string Detailed help text
 		 */
 		public function getHelp(): string {

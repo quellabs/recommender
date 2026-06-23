@@ -37,6 +37,7 @@
 		private array $config = [];
 		
 		/**
+		 * Return the provider metadata (none for this provider).
 		 * @return array<string, mixed>
 		 */
 		public static function getMetadata(): array {
@@ -44,6 +45,7 @@
 		}
 		
 		/**
+		 * Return the raw configuration array currently held by the provider.
 		 * @return array<string, mixed>
 		 */
 		public function getConfig(): array {
@@ -51,6 +53,7 @@
 		}
 		
 		/**
+		 * Store the raw configuration array injected by the DI container.
 		 * @param array<string, mixed> $config
 		 * @return void
 		 */

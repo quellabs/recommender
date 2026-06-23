@@ -42,6 +42,7 @@
 		) {}
 		
 		/**
+		 * Return the configured default category.
 		 * @return int The configured default category
 		 */
 		public function getCategory(): int {
@@ -49,6 +50,7 @@
 		}
 		
 		/**
+		 * Return the minimum number of common ratings required before a similarity is considered reliable.
 		 * @return int Minimum common ratings before a similarity is considered reliable
 		 */
 		public function getThresholdNrCommonRatings(): int {
@@ -56,6 +58,7 @@
 		}
 		
 		/**
+		 * Return the multiplier used in the similarity confidence calculation.
 		 * @return int Multiplier used in the similarity confidence calculation
 		 */
 		public function getThresholdMult(): int {
@@ -63,6 +66,7 @@
 		}
 		
 		/**
+		 * Return the minimum rating for an item to count as "liked".
 		 * @return float Minimum rating for an item to count as "liked"
 		 */
 		public function getThresholdRating(): float {
@@ -70,6 +74,7 @@
 		}
 		
 		/**
+		 * Return the cost factor used in the similarity spread calculation.
 		 * @return float Cost factor used in the similarity spread calculation
 		 */
 		public function getCost(): float {
@@ -77,6 +82,7 @@
 		}
 		
 		/**
+		 * Return the sentinel rating value that marks "not interested".
 		 * @return float Sentinel rating value marking "not interested"
 		 */
 		public function getNotInterested(): float {
@@ -84,6 +90,7 @@
 		}
 		
 		/**
+		 * Whether the co-occurrence link table is maintained incrementally on every rating change.
 		 * @return bool Whether the link table is maintained incrementally
 		 */
 		public function isDirectLinks(): bool {
@@ -91,6 +98,7 @@
 		}
 		
 		/**
+		 * Whether the slope one diff table is maintained incrementally on every rating change.
 		 * @return bool Whether the slope one table is maintained incrementally
 		 */
 		public function isDirectSlope(): bool {
