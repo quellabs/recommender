@@ -96,9 +96,13 @@
 			$minSimilarity = max(0, min(100, $minSimilarity));
 			$limit = max(0, $limit);
 			
-			// Fetch all members who have rated at least one product in common
+			$numberOfRatings = $this->engine->memberNumRatings($memberId, true, false, $cat);
+			if ($numberOfRatings === 0) {
+				return [];
+			}
 			$rows = $this->connection->execute('
-				SELECT DISTINCT r2.`member_id`
+				SELECT r2.`member_id`, COUNT(*) AS common_count,
+				       SUM((r2.`rating` - r1.`rating`) * (r2.`rating` - r1.`rating`)) AS squared_diff
 				FROM `vogoo_ratings` r1
 				INNER JOIN `vogoo_ratings` r2 ON r2.`product_id` = r1.`product_id` AND
 				                                 r2.`category` = r1.`category` AND
@@ -107,6 +111,7 @@
 				      r1.`category` = :category AND
 				      r1.`rating` >= 0.0 AND
 				      r2.`rating` >= 0.0
+				GROUP BY r2.`member_id`
 			', [
 				'member_id'  => $memberId,
 				'member_id2' => $memberId,
@@ -117,16 +122,16 @@
 			
 			foreach ($rows as $row) {
 				$otherId = (int)$row['member_id'];
-				$similarity = $this->memberSimilarity($memberId, $otherId, $cat);
+				$similarity = $this->scoreSimilarity((int)$row['common_count'], (float)$row['squared_diff'], $numberOfRatings);
 				
-				if ($similarity < $minSimilarity) {
+				if ($similarity === 0 || $similarity < $minSimilarity) {
 					continue;
 				}
 				
 				$neighbours[] = ['member_id' => $otherId, 'similarity' => $similarity];
 			}
 			
-			usort($neighbours, fn($a, $b) => $b['similarity'] <=> $a['similarity']);
+			usort($neighbours, fn($a, $b) => ($b['similarity'] <=> $a['similarity']) ?: ($a['member_id'] <=> $b['member_id']));
 			return $limit > 0 ? array_slice($neighbours, 0, $limit) : $neighbours;
 		}
 		
@@ -158,7 +163,7 @@
 				return [];
 			}
 			
-			arsort($scores);
+			uksort($scores, fn($a, $b) => ($scores[$b] <=> $scores[$a]) ?: ($a <=> $b));
 			
 			$result = array_keys($scores);
 			return $limit > 0 ? array_slice($result, 0, $limit) : $result;
@@ -219,36 +224,23 @@
 			$scores = [];
 			$weights = [];
 			
-			foreach ($neighbours as ['member_id' => $neighbourId, 'similarity' => $similarity]) {
-				$rows = $this->connection->execute('
-					SELECT
-						`product_id`,
-						`rating`
-					FROM `vogoo_ratings`
-					WHERE `member_id` = :member_id AND
-					      `category` = :category AND
-					      `rating` >= :threshold AND
-					      NOT EXISTS (
-					      	SELECT 1 FROM `vogoo_ratings` vr
-					      	WHERE vr.`member_id` = :target_member_id AND
-					      	      vr.`category` = :category2 AND
-					      	      vr.`product_id` = `vogoo_ratings`.`product_id`
-					      )
-				', [
-					'member_id'        => $neighbourId,
-					'category'         => $category,
-					'threshold'        => $threshold,
-					'target_member_id' => $memberId,
-					'category2'        => $category
-				])->fetchAll('assoc');
-				
+			$similarities = array_column($neighbours, 'similarity', 'member_id');
+			foreach (array_chunk(array_keys($similarities), 500) as $memberIds) {
+				$placeholders = implode(',', array_fill(0, count($memberIds), '?'));
+				$rows = $this->connection->execute("SELECT r.member_id, r.product_id, r.rating
+					FROM vogoo_ratings r WHERE r.member_id IN ({$placeholders})
+					AND r.category = ? AND r.rating >= ?
+					AND NOT EXISTS (SELECT 1 FROM vogoo_ratings target
+						WHERE target.member_id = ? AND target.category = ?
+						AND target.product_id = r.product_id)",
+					array_merge($memberIds, [$category, $threshold, $memberId, $category])
+				)->fetchAll('assoc');
 				foreach ($rows as $row) {
 					$id = (int)$row['product_id'];
-					
-					if (!empty($filter) && !in_array($id, $filter, true)) {
+					if ($filter !== [] && !in_array($id, $filter, true)) {
 						continue;
 					}
-					
+					$similarity = $similarities[(int)$row['member_id']];
 					$scores[$id] = ($scores[$id] ?? 0.0) + $similarity * (float)$row['rating'];
 					$weights[$id] = ($weights[$id] ?? 0) + $similarity;
 				}

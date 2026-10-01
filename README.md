@@ -15,8 +15,7 @@ Based on the [Vogoo PHP recommendation engine](http://www.vogoo.net/) (2007–20
 
 - PHP 8.2+
 - `cakephp/database` ^5.0
-- MySQL (the incremental link update queries use MySQL-specific `UPDATE ... JOIN` and
-  `INSERT ... ON DUPLICATE KEY UPDATE` syntax)
+- MySQL (incremental updates use `INSERT ... ON DUPLICATE KEY UPDATE`)
 
 ## Installation
 
@@ -42,6 +41,7 @@ sculpt recommender:init-db
 ```
 
 Creates `vogoo_ratings` and `vogoo_links`. Use `--force` to drop and recreate existing tables.
+`--force` deletes ratings and is not a migration procedure.
 
 ### 3. Populate the link table
 
@@ -56,6 +56,20 @@ To rebuild a single category only:
 ```bash
 sculpt recommender:rebuild-links --category=2
 ```
+
+Pause rating writes while rebuilding. The command computes each category in staging storage,
+then replaces its rows in one transaction. It rebuilds both measures regardless of the
+`direct_links` and `direct_slope` settings, and clears stale rows for empty categories.
+
+### Upgrade an existing installation
+
+Back up both `vogoo_ratings` and `vogoo_links`, pause rating writes, run
+[`migrations/2026-10-independent-pair-counts.sql`](migrations/2026-10-independent-pair-counts.sql),
+then run `sculpt recommender:rebuild-links` before resuming writes. The old
+`cnt` column mixes liked and Slope One contributions, so its values cannot be
+assigned to either new count. The migration preserves `vogoo_ratings`; the rebuild
+reconstructs every derived row from those ratings. If an upgrade fails, restore
+both backed-up tables together, then run the previous package version.
 
 ## Database schema
 
@@ -81,8 +95,12 @@ incrementally.
 | `item_id1`   | INT UNSIGNED | First item in the pair                    |
 | `item_id2`   | INT UNSIGNED | Second item in the pair                   |
 | `category`   | INT UNSIGNED | Category grouping                         |
-| `cnt`        | INT          | Co-occurrence count                       |
-| `diff_slope` | FLOAT        | Accumulated Slope One rating differential |
+| `liked_count` | INT UNSIGNED | Members who liked both items |
+| `slope_count` | INT UNSIGNED | Members who genuinely rated both items |
+| `diff_slope` | FLOAT | Sum of rating(item_id2) minus rating(item_id1) over slope contributors |
+
+A directed pair row exists while either count is positive. `Statistics::numLinks()`
+counts rows of either kind. Each incremental option updates only its own measure.
 
 ## Configuration
 
@@ -106,7 +124,7 @@ return [
     // Cost factor used in the member similarity spread calculation
     'cost' => 5.0,
 
-    // Sentinel value stored to mark "not interested" (must be negative)
+    // Sentinel value stored to mark "not interested" (fixed at -1.0)
     'not_interested' => -1.0,
 
     // Maintain vogoo_links incrementally on every rating change.
@@ -124,6 +142,10 @@ return [
 | Counts | Co-occurrence (liked pairs only)                  | All rated pairs                                            |
 
 When both are `false`, `vogoo_links` is read-only at runtime and must be rebuilt manually.
+Run a full rebuild when enabling either incremental option on an existing ratings store.
+Invalid persisted ratings return `false` from `setRating()`; visitor ratings and
+invalid configuration throw `InvalidArgumentException`. Ratings must be finite,
+within 0.0–1.0, or exactly -1.0. IDs and categories must be nonnegative.
 
 ## Usage
 
@@ -214,6 +236,10 @@ $recommender->memberPredict($memberId, $productId);                // float|null
 $recommender->memberPredictAll($memberId);                         // [['product_id', 'rating'], ...]
 $recommender->getSlopeItems($productId);                           // [['product_id', 'diff'], ...]
 
+// Opt-in scores, strategy, and contributing product IDs
+$recommender->memberRecommendationsDetailed($memberId);           // RecommendationResult[]
+$recommender->visitorRecommendationsDetailed($visitor);           // RecommendationResult[]
+
 // Anonymous visitors (pass a VisitorContext instead of a member ID)
 $recommender->visitorGetRecommendedItems($visitor);
 $recommender->visitorPredict($visitor, $productId);
@@ -221,6 +247,16 @@ $recommender->visitorPredictAll($visitor);
 ```
 
 All methods accept an optional `$filter` (array of allowed product IDs), `$limit`, and `$category` parameter.
+The detailed methods also accept `$minHistory` (default 1) and `$minRatings`
+(default 2). Below the genuine-rating history threshold they rank top-rated
+products with at least `$minRatings` ratings. Seen and rejected products are
+excluded. `item_links` scores sum `liked_count × (source rating − like threshold)`;
+`top_rated` scores are average genuine ratings. Scores are meaningful only
+within the same strategy. A single-item Slope One prediction estimates even
+an already rated item; the all-item methods return only unrated items.
+
+Allowed-item filters are applied before SQL limits. Lists above 500 IDs are
+loaded into a temporary indexed table in batches of 500 for bounded query size.
 
 ### `UserSimilarity`
 
@@ -232,8 +268,8 @@ $neighbours = $userSimilarity->getNeighbours($memberId, minSimilarity: 10, limit
 $items      = $userSimilarity->memberGetRecommendedItems($memberId);
 ```
 
-> **Note:** `getNeighbours()` computes similarity against every candidate neighbour in PHP. For large member sets,
-> pre-compute and cache neighbour lists.
+`getNeighbours()` aggregates candidate overlaps in one query. Recommendation
+rating reads are grouped in batches of 500 neighbours.
 
 ### `VisitorContext`
 

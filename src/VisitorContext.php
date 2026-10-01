@@ -37,6 +37,9 @@
 		 * @return void
 		 */
 		public function setRating(int $productId, float $rating, ?int $category = null): void {
+			if ($productId < 0 || !is_finite($rating) || ($rating < 0.0 && $rating !== $this->config->getNotInterested()) || $rating > 1.0) {
+				throw new \InvalidArgumentException('Invalid visitor rating or product ID.');
+			}
 			$cat = $this->config->resolveCategory($category);
 			
 			foreach ($this->ratings as &$entry) {

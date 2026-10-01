@@ -46,11 +46,10 @@
 
 <bold>Tables created:</bold>
   vogoo_ratings   Stores member/product ratings (float 0.0-1.0, -1.0 = not interested)
-  vogoo_links     Stores item co-occurrence counts and slope one diff values
+  vogoo_links     Stores independent liked and slope counts and differential sums
 
 <bold>Notes:</bold>
-  vogoo_links requires a unique key on (item_id1, item_id2, category) for the
-  rebuild command's upsert to work correctly.
+  Existing installations must migrate and rebuild from ratings; --force deletes ratings.
 HELP;
 		}
 		
@@ -142,10 +141,12 @@ HELP;
 			    `item_id1`   INT UNSIGNED  NOT NULL,
 			    `item_id2`   INT UNSIGNED  NOT NULL,
 			    `category`   INT UNSIGNED  NOT NULL DEFAULT 1,
-			    `cnt`        INT           NOT NULL DEFAULT 0,
+			    `liked_count` INT UNSIGNED NOT NULL DEFAULT 0,
+			    `slope_count` INT UNSIGNED NOT NULL DEFAULT 0,
 			    `diff_slope` FLOAT         NOT NULL DEFAULT 0.0,
 			    PRIMARY KEY (`item_id1`, `item_id2`, `category`),
-			    INDEX `idx_item2` (`item_id2`, `category`)
+			    INDEX `idx_item2` (`item_id2`, `category`),
+			    INDEX `idx_category` (`category`, `item_id1`, `item_id2`)
 			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
 			);
 			

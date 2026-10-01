@@ -374,7 +374,8 @@
 		public function setRating(int $memberId, int $productId, float $rating, ?int $category = null): bool {
 			$cat = $this->config->resolveCategory($category);
 			
-			if (($rating < 0.0 && $rating !== $this->config->getNotInterested()) || $rating > 1.0) {
+			if ($memberId < 0 || $productId < 0 || !is_finite($rating)
+				|| ($rating < 0.0 && $rating !== $this->config->getNotInterested()) || $rating > 1.0) {
 				return false;
 			}
 			
@@ -421,7 +422,7 @@
 			}
 			
 			if ($existing['rating'] < 1.0) {
-				return $this->setRating($memberId, $productId, $existing['rating'] + 0.01, $cat);
+				return $this->setRating($memberId, $productId, min(1.0, $existing['rating'] + 0.01), $cat);
 			}
 			
 			return true;

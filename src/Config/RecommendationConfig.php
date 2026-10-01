@@ -39,7 +39,13 @@
 			
 			// Whether to maintain the slope one diff table incrementally on every rating change
 			private readonly bool  $directSlope = true,
-		) {}
+		) {
+			if ($category < 0 || $thresholdNrCommonRatings < 1 || $thresholdMult < 1
+				|| !is_finite($thresholdRating) || $thresholdRating < 0.0 || $thresholdRating > 1.0
+				|| !is_finite($cost) || $cost <= 0.0 || $notInterested !== -1.0) {
+				throw new \InvalidArgumentException('Invalid recommender configuration.');
+			}
+		}
 		
 		/**
 		 * Return the configured default category.
@@ -112,6 +118,10 @@
 		 * @return int The resolved category
 		 */
 		public function resolveCategory(?int $category): int {
-			return $category ?? $this->category;
+			$resolved = $category ?? $this->category;
+			if ($resolved < 0) {
+				throw new \InvalidArgumentException('Category must be nonnegative.');
+			}
+			return $resolved;
 		}
 	}

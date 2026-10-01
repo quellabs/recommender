@@ -126,7 +126,7 @@
 				WHERE `category` = :category AND
 				      `rating` >= 0.0
 				GROUP BY `product_id`
-				ORDER BY num_ratings DESC
+			ORDER BY num_ratings DESC, `product_id` ASC
 			';
 			
 			if ($limit > 0) {
@@ -168,7 +168,7 @@
 				      `rating` >= 0.0
 				GROUP BY `product_id`
 		        HAVING COUNT(*) >= :min_ratings
-				ORDER BY avg_rating DESC
+				ORDER BY avg_rating DESC, `product_id` ASC
 			';
 			
 			if ($limit > 0) {
@@ -190,7 +190,7 @@
 		}
 		
 		/**
-		 * Return the number of item pairs in the vogoo_links table.
+		 * Return the number of directed pair rows with either liked or Slope One data.
 		 * Useful for monitoring link table growth.
 		 * @param int|null $category Defaults to configured default
 		 * @return int Number of link rows in the category

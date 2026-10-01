@@ -11,20 +11,20 @@
 		// Multiplier used in the similarity confidence calculation
 		'threshold_mult'              => 2,
 		
-		// Minimum rating for an item to count as "liked" in link/slope calculations
+		// Minimum rating for an item to count as "liked" in link calculations
 		'threshold_rating'            => 0.66,
 		
 		// Cost factor used in the member similarity spread calculation
 		'cost'                        => 5.0,
 		
-		// Sentinel value stored to mark "not interested" (must be negative)
+		// Sentinel value stored to mark "not interested" (must remain -1.0)
 		'not_interested'              => -1.0,
 		
-		// Maintain the co-occurrence link table incrementally on every rating change.
+		// Maintain liked_count incrementally on every rating change.
 		// When false, run "sculpt recommender:rebuild-links" after bulk imports.
 		'direct_links'                => false,
 		
-		// Maintain the slope one diff table incrementally on every rating change.
+		// Maintain slope_count and diff_slope incrementally on every rating change.
 		// When false, run "sculpt recommender:rebuild-links" after bulk imports.
 		'direct_slope'                => true,
 	
